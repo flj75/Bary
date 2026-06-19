@@ -69,6 +69,19 @@
 - Toggle **"Sauvegarder dans mes amis"** (activé par défaut)
 - Bouton **Annuler** + bouton **Ajouter**
 
+### État de chargement de la carte
+MapLibre charge ses tuiles de façon asynchrone. Pendant l'initialisation (particulièrement perceptible sur connexion mobile lente) :
+- Un **skeleton gris** recouvre la zone carte (même dimensions, même position en fond)
+- Un **spinner discret** est centré sur le skeleton
+- Dès que MapLibre émet l'événement `map.on('load')`, le skeleton disparaît avec un fondu (opacity 0 → transition 200 ms)
+
+Ce comportement s'applique à tous les écrans contenant une carte (Écrans 1, 2, 3, 4).
+
+### Bouton × désactivé — tooltip explicatif
+Quand le groupe est à exactement 2 participants, les boutons × sont grisés. Si l'utilisateur clique (mobile) ou survole (desktop) un bouton × désactivé :
+- **Tooltip** : *"Minimum 2 personnes pour calculer un point de rencontre"*
+- Sur mobile : le tooltip s'affiche sous forme de toast en bas d'écran (1,5 s), pour contourner l'absence de survol sur tactile
+
 ### Zoom carte
 La carte ajuste automatiquement son emprise (`fitBounds`) pour englober tous les dots visibles.
 
@@ -93,6 +106,18 @@ La carte ajuste automatiquement son emprise (`fitBounds`) pour englober tous les
 ### Note MVP
 Le sélecteur de type de lieu (Bar, Restaurant, Café, Parc…) est absent du MVP. Il sera introduit en v3 avec les suggestions de lieux à proximité.
 
+### Transition vers l'écran 4 — Animation de calcul
+Le calcul minimax prend < 1 ms en réalité, mais une transition perçue de **1 à 2 secondes** renforce la confiance de l'utilisateur dans le résultat (sentiment que "quelque chose a vraiment été calculé").
+
+Comportement au tap sur "Calculer le point" :
+1. Le CTA passe en état **chargement** (spinner blanc remplace le texte, bouton non re-cliquable)
+2. Le calcul s'exécute immédiatement côté client
+3. Un délai artificiel de **1 200 ms** est appliqué après le calcul
+4. Pendant ce délai, la carte en fond effectue un **zoom animé** vers le barycentre géographique du groupe (anticipation visuelle)
+5. À 1 200 ms : transition vers l'Écran 4 (slide up ou fade, à définir en phase design)
+
+Ce délai est intentionnel et documenté — il ne masque pas une lenteur mais construit la perception de précision.
+
 ---
 
 ## Écran 4 — Résultat
@@ -108,7 +133,7 @@ Le sélecteur de type de lieu (Bar, Restaurant, Café, Parc…) est absent du MV
 ### Éléments — Card résultat
 - *"Rendez-vous à"* (label discret)
 - **Nom de la station** (large, bleu)
-- **Badge ligne** (cercle coloré avec numéro/lettre, couleur officielle RATP/IDFM)
+- **Badges lignes** : si la station résultat est desservie par plusieurs lignes, tous les badges sont affichés côte à côte, ordonnés par numéro/lettre de ligne (ordre : chiffres croissants d'abord, puis lettres alphabétiques — ex : 1, 5, 14, A, B). Chaque badge garde sa couleur officielle RATP/IDFM.
 - Sous-titre : *"Le point le plus équitable pour N amis en Métro."*
 - Deux métriques côte à côte :
   - **Trajet moyen** : X min
@@ -134,6 +159,11 @@ bary.app/?s=[station-id]&g=[prenom:station-id,prenom:station-id,...]
 Exemple : `bary.app/?s=bastille&g=Hugo:chatelet,Sofia:pigalle,Karim:denfert,François:nation`
 
 Un destinataire qui ouvre ce lien voit directement l'Écran 4 avec le résultat pré-calculé.
+
+### Comportement du lien si le carnet d'amis a changé
+Le lien encode un **instantané figé** au moment du partage : station résultat, prénoms des participants et stations de départ. Il est **totalement indépendant du carnet d'amis** du créateur.
+
+Si Hugo déménage à Oberkampf après le partage, le lien affiche toujours son ancienne station (Châtelet). Le résultat reste valide et identique pour tous les destinataires, quelle que soit l'évolution ultérieure du carnet. C'est un choix délibéré : un lien partagé doit toujours afficher le même résultat (comportement déterministe, pas de surprise à la réécriture).
 
 ---
 
