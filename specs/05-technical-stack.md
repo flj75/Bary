@@ -141,8 +141,10 @@ bary/
 │   │   │   └── page.tsx      # Écran 2 — Groupe
 │   │   ├── settings/
 │   │   │   └── page.tsx      # Écran 3 — Paramètres
-│   │   └── result/
-│   │       └── page.tsx      # Écran 4 — Résultat
+│   │   ├── result/
+│   │   │   └── page.tsx      # Écran 4 — Résultat
+│   │   └── friends/
+│   │       └── page.tsx      # Écran 5 — Carnet d'amis
 │   ├── components/           # Composants UI réutilisables
 │   │   ├── Map.tsx
 │   │   ├── ParticipantCard.tsx
