@@ -201,6 +201,21 @@ Certains hubs parisiens majeurs apparaissent comme des entités **séparées** d
 
 On définit une liste statique de **5 hubs**. Les IDs sont vérifiés dans le fichier `stops.txt` du GTFS officiel IDFM (téléchargé le 2026-06-18). Ils correspondent à la colonne `parent_station` — niveau stop area, qui agrège tous les quais d'une même station.
 
+> **⚠️ Note d'implémentation — IDs à mettre à jour dans `hubs.ts`**
+>
+> Les IDs ci-dessous (`IDFM:71264`, `IDFM:73794`, etc.) sont des **parent_station GTFS** issus de `stops.txt`. Ils **ne correspondent pas** aux IDs présents dans `public/data/stations.json`, qui est généré depuis l'API `arrets-lignes` et utilise des IDs de quais individuels (ex : `IDFM:463079` pour Châtelet M1/M4/M7/M11/M14).
+>
+> Lors de l'implémentation de `src/lib/algorithm/hubs.ts`, les `stationIds` devront être remplacés par les IDs réels du dataset. Référence rapide vérifiée au 2026-06-24 :
+>
+> | Station | ID dataset (`stations.json`) | Lignes |
+> |---------|------------------------------|--------|
+> | Châtelet | `IDFM:463079` | M1+M4+M7+M11+M14 |
+> | Gare du Nord | `IDFM:monomodalStopPlace:462394` | M4+M5+RER B+D |
+> | Opéra | `IDFM:463245` | M3+M7+M8 |
+> | Bastille | `IDFM:463018` | M1+M5+M8 |
+>
+> Les stations RER du hub Châtelet-Les Halles (`IDFM:73794` Les Halles M4, `IDFM:474151` RER A/B/D) devront être recherchées dans le dataset par leur nom exact au moment de l'implémentation.
+
 Trois cas initialement envisagés ont été retirés car leurs stations partagent déjà le même stop area dans le dataset et ne nécessitent aucun traitement supplémentaire :
 - Nation (M1/M2/M6/M9 + RER A) → `IDFM:71673` unique dans le dataset
 - Montparnasse-Bienvenüe (M4/M6/M12/M13) + Gare Montparnasse (RER) → `IDFM:71139` unique
