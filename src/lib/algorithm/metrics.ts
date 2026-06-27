@@ -12,6 +12,10 @@ export type DisplayMetrics = {
 export function computeDisplayMetrics(
   times: Map<Station, number>
 ): DisplayMetrics {
+  if (times.size === 0) {
+    return { maxTime: 0, avgTime: 0, furthestParticipants: [], progressBars: new Map() };
+  }
+
   const entries = [...times.entries()];
   const values = entries.map(([, t]) => t);
 

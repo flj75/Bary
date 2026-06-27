@@ -343,6 +343,22 @@ function effectiveTravelTime(
 }
 ```
 
+### Divergences d'implémentation — `effectiveTravelTime`
+
+**Comparaison de hub par overlap de `stationIds` au lieu de `.name`**
+
+Le pseudo-code ci-dessus détecte le "même hub" via `toHub.name === fromHub.name`. L'implémentation dans `src/lib/algorithm/hubs.ts` utilise à la place :
+
+```typescript
+const sameHub = toHub && fromHub && toHub.stationIds.some((id) => fromHub.stationIds.includes(id));
+```
+
+Raison : une comparaison de chaînes de noms est fragile — une faute de frappe lors d'une future mise à jour des hubs casserait silencieusement la détection. L'overlap de `stationIds` est structurellement stable car les IDs sont la source de vérité des hubs.
+
+**Fallback gracieux si `hubStations` est vide**
+
+Si aucune des `stationIds` d'un hub ne se trouve dans `allStations` (configuration incohérente), le `Math.min()` sur un tableau vide retournerait `Infinity`, faussant le minimax. L'implémentation ajoute un fallback : si `hubStations.length === 0`, on retourne `provider.getMinutes(from, to)` (trajet standard sans logique de hub).
+
 ### Limites de cette approche MVP
 - La liste est statique et manuelle : elle devra être mise à jour si le réseau évolue.
 - Elle ne couvre pas les hubs de petite taille (correspondances < 2 min à pied) ni les hubs en grande banlieue.

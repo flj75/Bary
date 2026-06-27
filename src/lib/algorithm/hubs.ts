@@ -66,15 +66,22 @@ export function effectiveTravelTime(
   const toHub = getHubForStation(to.id);
   const fromHub = getHubForStation(from.id);
 
-  // Même hub : trajet à pied uniquement
-  if (toHub && fromHub && toHub.name === fromHub.name) {
-    return toHub.walkingTimeMinutes;
+  // Même hub : trajet à pied uniquement.
+  // Comparaison par overlap de stationIds (plus robuste qu'une égalité de .name).
+  const sameHub =
+    toHub &&
+    fromHub &&
+    toHub.stationIds.some((id) => fromHub.stationIds.includes(id));
+  if (sameHub) {
+    return toHub!.walkingTimeMinutes;
   }
 
   // Station candidate dans un hub : tester toutes les entrées du hub,
   // retenir le chemin le plus court (transport vers n'importe quelle entrée + marche interne)
   if (toHub) {
     const hubStations = allStations.filter((s) => toHub.stationIds.includes(s.id));
+    // Fallback gracieux si les IDs du hub sont absents du dataset (configuration incohérente)
+    if (hubStations.length === 0) return provider.getMinutes(from, to);
     const times = hubStations.map((entry) => {
       const t = provider.getMinutes(from, entry);
       return entry.id === to.id ? t : t + toHub.walkingTimeMinutes;

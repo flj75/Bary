@@ -18,13 +18,13 @@ export type OptimalResult = {
   times: Map<Station, number>;
 };
 
-// Retourne null si candidates est vide (dataset corrompu — cf. US-17).
+// Retourne null si participants ou candidates est vide (dataset corrompu — cf. US-17).
 export function findOptimalStation(
   participants: Station[],
   candidates: Station[],
   travelTime: TravelTimeProvider
 ): OptimalResult | null {
-  if (candidates.length === 0) return null;
+  if (participants.length === 0 || candidates.length === 0) return null;
 
   let bestMaxTime = Infinity;
   let tied: OptimalResult[] = [];

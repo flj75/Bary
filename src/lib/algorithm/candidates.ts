@@ -49,6 +49,9 @@ export function buildCandidates(
     reachSets.every((reach) => reach.has(s.id))
   );
 
-  // Fallback si l'intersection est vide (participants sur des réseaux très disjoints)
+  // Fallback si l'intersection est vide (participants sur des réseaux très disjoints,
+  // ex. un participant en grande banlieue sans correspondance avec le reste du groupe).
+  // On retourne allStations plutôt que null : le minimax trouvera alors le meilleur
+  // compromis global, même si certains temps de trajet sont très asymétriques.
   return intersection.length > 0 ? intersection : allStations;
 }
