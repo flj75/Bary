@@ -114,6 +114,30 @@ interface TravelTimeProvider {
 }
 ```
 
+### Divergence d'implémentation — intégration de `effectiveTravelTime` avec `TravelTimeProvider`
+
+`effectiveTravelTime()` (Étape 2c) nécessite trois arguments : `from`, `to`, et `allStations`. Or l'interface `TravelTimeProvider` ne définit que `getMinutes(from, to)` — elle ne sait pas ce qu'est `allStations`.
+
+Deux options ont été envisagées :
+
+1. **Modifier la signature** : `getMinutes(from, to, allStations)` — rejeté. Cela aurait cassé le contrat de l'interface et obligé tous les futurs providers (matrice GTFS v2, provider multi-transport v3) à accepter un paramètre dont ils n'ont pas besoin.
+
+2. **Closure (choix retenu)** : dans `src/lib/algorithm/index.ts`, une fonction `makeProvider(allStations)` crée un objet `TravelTimeProvider` anonyme qui capture `allStations` dans sa closure et appelle `effectiveTravelTime` en interne.
+
+```typescript
+// src/lib/algorithm/index.ts
+function makeProvider(allStations: Station[]): TravelTimeProvider {
+  const haversine = new HaversineTravelTimeProvider();
+  return {
+    getMinutes(from, to) {
+      return effectiveTravelTime(from, to, allStations, haversine);
+    },
+  };
+}
+```
+
+Le contrat `TravelTimeProvider` reste intact et portable. `findOptimalStation` (minimax) ne sait pas qu'il y a des hubs — il appelle simplement `travelTime.getMinutes(p, candidate)` comme prévu.
+
 ---
 
 ## Étape 2b — Définition de l'ensemble candidates
@@ -332,15 +356,19 @@ function effectiveTravelTime(
 Pour chaque station candidate `s` (filtrée via l'Étape 2b), on calcule le temps de trajet de chaque participant vers `s`, puis on retient le maximum. La station optimale est celle dont ce maximum est le plus faible.
 
 ### Implémentation
+
+> **Note d'implémentation** : le pseudo-code ci-dessous reflète le design d'origine. Deux divergences ont été introduites lors de l'implémentation dans `src/lib/algorithm/minimax.ts` — voir section "Divergences" après le bloc.
+
 ```typescript
 function findOptimalStation(
   participants: Station[],
   candidates: Station[],
   travelTime: TravelTimeProvider
-): { station: Station; times: Map<Station, number> } {
-  let best: Station | null = null;
+): { station: Station; times: Map<Station, number> } | null {
+  if (candidates.length === 0) return null;
+
   let bestMaxTime = Infinity;
-  let bestTimes = new Map<Station, number>();
+  let tied: Array<{ station: Station; times: Map<Station, number> }> = [];
 
   for (const candidate of candidates) {
     const times = new Map(
@@ -350,18 +378,33 @@ function findOptimalStation(
 
     if (maxTime < bestMaxTime) {
       bestMaxTime = maxTime;
-      best = candidate;
-      bestTimes = times;
+      tied = [{ station: candidate, times }];
+    } else if (maxTime === bestMaxTime) {
+      tied.push({ station: candidate, times });
     }
   }
 
-  return { station: best!, times: bestTimes };
+  if (tied.length === 1) return tied[0];
+
+  // Tie-breaker intégré : station la plus proche de Châtelet parmi les ex-æquo
+  const winner = tieBreaker(tied.map((r) => r.station));
+  return tied.find((r) => r.station.id === winner.id)!;
 }
 ```
 
+### Divergences par rapport au design initial
+
+**1 — Tie-breaker intégré (Étapes 3 + 4 fusionnées)**
+
+Le design original présentait `findOptimalStation` et `tieBreaker` comme deux fonctions distinctes à appeler séquentiellement. L'implémentation les fusionne : les ex-æquo sont collectés au fil du scan (dans un tableau `tied`), et `tieBreaker` est appelé en fin de boucle sur cette liste. Résultat strictement identique, mais en une seule passe sur les candidates plutôt que deux.
+
+**2 — Retour `null` au lieu de `best!`**
+
+Le pseudo-code original utilisait une non-null assertion (`best!`) qui masquait silencieusement le cas `candidates.length === 0`. L'implémentation retourne `null` explicitement dans ce cas. Le code appelant (écran 3 → 4) est ainsi forcé à gérer l'erreur, ce qui est cohérent avec US-17 (gestion d'un calcul impossible).
+
 ### Complexité
-- **O(C × P)** où C = nombre de stations candidates (~950) et P = nombre de participants (typiquement 2–10)
-- Soit ~9 500 opérations max pour un groupe de 10 personnes → **< 1 ms** côté client
+- **O(C × P)** où C = nombre de stations candidates (~803) et P = nombre de participants (typiquement 2–10)
+- Soit ~8 000 opérations max pour un groupe de 10 personnes → **< 1 ms** côté client
 
 Pas besoin d'optimisation en MVP. Si le dataset s'élargit (autres villes, GTFS complet), un filtrage géographique préalable (ne garder que les stations dans un rayon de X km du barycentre) peut réduire C.
 
@@ -374,6 +417,8 @@ En cas d'égalité parfaite de `maxTime` entre plusieurs stations candidates, on
 **Point de référence : Châtelet** — `{ lat: 48.8597, lng: 2.3469 }`
 
 Justification : les stations centrales offrent un bassin de lieux (bars, restaurants, parcs) plus large, ce qui anticipe la v3 des suggestions de lieux à proximité.
+
+> **Note** : le tie-breaker est intégré directement dans `findOptimalStation` (voir Étape 3). La fonction `tieBreaker` ci-dessous est extraite pour la lisibilité du principe, elle correspond à la logique interne de l'implémentation.
 
 ```typescript
 const PARIS_CENTER: { lat: number; lng: number } = { lat: 48.8597, lng: 2.3469 };
@@ -410,6 +455,14 @@ function computeDisplayMetrics(times: Map<Station, number>) {
   return { maxTime, avgTime, furthestParticipant, progressBars };
 }
 ```
+
+### Divergence d'implémentation — `furthestParticipant` → `furthestParticipants[]`
+
+Le pseudo-code ci-dessus retourne `furthestParticipant` (singulier) via `.find()`, ce qui sélectionne silencieusement le premier ex-æquo en cas d'égalité.
+
+L'implémentation dans `src/lib/algorithm/metrics.ts` retourne à la place `furthestParticipants: Station[]` — un tableau contenant **tous** les participants au temps maximum. Longueur 1 dans le cas nominal ; longueur 2+ en cas d'égalité.
+
+Ce choix est directement motivé par US-09 : *"Égalité entre deux participants sur le temps max : afficher les deux prénoms ('Sofia & Hugo · 36 min')"*. Avec un tableau, le composant d'affichage peut joindre les prénoms sans logique supplémentaire, plutôt que de devoir rescanner `progressBars` pour détecter les ex-æquo.
 
 ---
 

@@ -74,7 +74,9 @@ bary/
 │   │   │   ├── candidates.ts           # Étape 2b : getReachableStations, buildCandidates
 │   │   │   ├── minimax.ts              # Étape 3  : findOptimalStation + Étape 4 tieBreaker
 │   │   │   ├── metrics.ts              # Étape 5  : computeDisplayMetrics
-│   │   │   └── index.ts                # Point d'entrée public : exporte uniquement findMeetingPoint()
+│   │   │   └── index.ts                # Point d'entrée unique : findMeetingPoint(participants, allStations)
+│   │   │                               # Crée le provider hub-aware via makeProvider(allStations) — closure
+│   │   │                               # qui encapsule allStations sans polluer TravelTimeProvider.getMinutes()
 │   │   ├── store/
 │   │   │   └── friendStore.ts          # Interface FriendStore + class LocalFriendStore (localStorage)
 │   │   └── shareUrl.ts                 # encode(participants, result) → URL / decode(url) → état
