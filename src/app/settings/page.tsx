@@ -7,6 +7,7 @@ import { MapView } from '@/components/map/MapView';
 import { useSession } from '@/context/SessionContext';
 import { findMeetingPoint } from '@/lib/algorithm';
 import type { Station } from '@/types/station';
+import type { SessionState } from '@/types/session';
 
 const TRANSPORT_OPTIONS = [
   { label: 'Métro / RER / Tram', value: 'metro' as const, available: true },
@@ -22,6 +23,11 @@ export default function SettingsPage() {
   const [calculating, setCalculating] = useState(false);
   const [tooltip, setTooltip] = useState<string | null>(null);
   const mapRef = useRef<MapRef>(null);
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); };
+  }, []);
 
   // Zoom automatique pour englober tous les dots
   useEffect(() => {
@@ -49,17 +55,20 @@ export default function SettingsPage() {
 
     const result = findMeetingPoint(participants.map(p => p.station), allStations);
 
-    if (result) {
-      dispatch({ type: 'SET_RESULT', payload: result });
-
-      // Zoom animé vers le barycentre géographique (anticipation visuelle — spec 03)
-      const avgLat = participants.reduce((s, p) => s + p.station.lat, 0) / participants.length;
-      const avgLng = participants.reduce((s, p) => s + p.station.lng, 0) / participants.length;
-      mapRef.current?.flyTo({ center: [avgLng, avgLat], zoom: 13, duration: 1000 });
+    if (!result) {
+      setCalculating(false);
+      return;
     }
 
+    dispatch({ type: 'SET_RESULT', payload: result });
+
+    // Zoom animé vers le barycentre géographique (anticipation visuelle — spec 03)
+    const avgLat = participants.reduce((s, p) => s + p.station.lat, 0) / participants.length;
+    const avgLng = participants.reduce((s, p) => s + p.station.lng, 0) / participants.length;
+    mapRef.current?.flyTo({ center: [avgLng, avgLat], zoom: 13, duration: 1000 });
+
     // Délai artificiel 1 200 ms — construit la perception de précision (spec 03)
-    setTimeout(() => router.push('/result'), 1200);
+    navTimerRef.current = setTimeout(() => router.push('/result'), 1200);
   }
 
   return (
@@ -104,7 +113,10 @@ export default function SettingsPage() {
               {TRANSPORT_OPTIONS.map(({ label, value, available }) => (
                 <div key={value} className="relative">
                   <button
-                    onClick={() => !available && showTooltip(label)}
+                    onClick={() => available
+                      ? dispatch({ type: 'SET_TRANSPORT', payload: { mode: value as SessionState['transportMode'] } })
+                      : showTooltip(label)
+                    }
                     className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
                       available && transportMode === value
                         ? 'bg-amber-50 text-zinc-900 ring-1 ring-amber-200'

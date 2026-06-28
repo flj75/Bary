@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { sessionReducer } from '../SessionContext';
 import type { SessionState, Participant } from '@/types/session';
 import type { Station } from '@/types/station';
+import type { MeetingPointResult } from '@/lib/algorithm';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,26 @@ const emptyState: SessionState = { participants: [], transportMode: 'metro', res
 function stateWith(...participants: Participant[]): SessionState {
   return { participants, transportMode: 'metro', result: null };
 }
+
+// Fixture MeetingPointResult minimal pour tester SET_RESULT
+const FAKE_RESULT: MeetingPointResult = {
+  optimal: {
+    station: CHATELET,
+    times: new Map([
+      [CHATELET, 4],
+      [NATION, 12],
+    ]),
+  },
+  metrics: {
+    maxTime: 12,
+    avgTime: 8,
+    furthestParticipants: [NATION],
+    progressBars: new Map([
+      [CHATELET, 33],
+      [NATION, 100],
+    ]),
+  },
+};
 
 // ── ADD_PARTICIPANT ───────────────────────────────────────────────────────────
 
@@ -204,6 +225,68 @@ describe('SET_TRANSPORT', () => {
     const next = sessionReducer(emptyState, { type: 'SET_TRANSPORT', payload: { mode: 'metro' } });
     expect(next).not.toBe(emptyState);
   });
+
+  // ── Tests QA US-06 (nouveaux) ──────────────────────────────────────────────
+
+  it('US-06 : conserve le result existant apres SET_TRANSPORT (US-11 coherence)', () => {
+    // SET_TRANSPORT ne doit pas effacer le result deja calcule
+    const state: SessionState = { ...stateWith(ALICE, BOB), result: FAKE_RESULT };
+    const next = sessionReducer(state, { type: 'SET_TRANSPORT', payload: { mode: 'metro' } });
+    expect(next.result).toBe(FAKE_RESULT);
+  });
+
+  it('US-06 : le transportMode est "metro" dans l\'etat initial (valeur par defaut)', () => {
+    expect(emptyState.transportMode).toBe('metro');
+  });
+});
+
+// ── SET_RESULT ────────────────────────────────────────────────────────────────
+
+describe('SET_RESULT (US-07)', () => {
+  it('stocke le resultat dans state.result', () => {
+    const next = sessionReducer(emptyState, { type: 'SET_RESULT', payload: FAKE_RESULT });
+    expect(next.result).toBe(FAKE_RESULT);
+  });
+
+  it('conserve les participants existants apres SET_RESULT', () => {
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, { type: 'SET_RESULT', payload: FAKE_RESULT });
+    expect(next.participants).toHaveLength(2);
+    expect(next.participants[0]).toEqual(ALICE);
+    expect(next.participants[1]).toEqual(BOB);
+  });
+
+  it('conserve le transportMode apres SET_RESULT', () => {
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, { type: 'SET_RESULT', payload: FAKE_RESULT });
+    expect(next.transportMode).toBe('metro');
+  });
+
+  it('retourne un nouvel objet (immutabilite)', () => {
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, { type: 'SET_RESULT', payload: FAKE_RESULT });
+    expect(next).not.toBe(state);
+  });
+
+  it('peut etre appele avec null pour effacer le result', () => {
+    const state: SessionState = { ...stateWith(ALICE), result: FAKE_RESULT };
+    const next = sessionReducer(state, { type: 'SET_RESULT', payload: null });
+    expect(next.result).toBeNull();
+  });
+
+  it('ecrase un resultat precedent', () => {
+    const state: SessionState = { ...stateWith(ALICE), result: FAKE_RESULT };
+    const newResult: MeetingPointResult = {
+      ...FAKE_RESULT,
+      optimal: { ...FAKE_RESULT.optimal, station: NATION },
+    };
+    const next = sessionReducer(state, { type: 'SET_RESULT', payload: newResult });
+    expect(next.result?.optimal.station.id).toBe(NATION.id);
+  });
+
+  it('result est null dans l\'etat initial', () => {
+    expect(emptyState.result).toBeNull();
+  });
 });
 
 // ── RESET ─────────────────────────────────────────────────────────────────────
@@ -231,6 +314,20 @@ describe('RESET', () => {
     const state = stateWith(ALICE);
     const next = sessionReducer(state, { type: 'RESET' });
     expect(next).not.toBe(state);
+  });
+
+  // ── Tests QA US-11 (nouveaux) ──────────────────────────────────────────────
+
+  it('US-11 : RESET efface le result (result revient a null)', () => {
+    // Si un resultat etait stocke, RESET doit le vider
+    const state: SessionState = { ...stateWith(ALICE, BOB), result: FAKE_RESULT };
+    const next = sessionReducer(state, { type: 'RESET' });
+    expect(next.result).toBeNull();
+  });
+
+  it('US-11 : RESET sur etat avec result null reste null (idempotent)', () => {
+    const next = sessionReducer(emptyState, { type: 'RESET' });
+    expect(next.result).toBeNull();
   });
 });
 
@@ -415,6 +512,12 @@ describe('Coherence des types (contrats de donnees)', () => {
     expect(typeof station.lng).toBe('number');
     expect(station.lines).toHaveLength(2);
   });
+
+  it('SessionState possede un champ result (null par defaut)', () => {
+    const s: SessionState = emptyState;
+    expect('result' in s).toBe(true);
+    expect(s.result).toBeNull();
+  });
 });
 
 // ── Sequences de transitions enchainees ──────────────────────────────────────
@@ -462,5 +565,34 @@ describe('Sequences de transitions (scenarios integres)', () => {
     state = sessionReducer(state, { type: 'ADD_PARTICIPANT', payload: CARL });
     expect(state.participants).toHaveLength(1);
     expect(state.participants[0]).toEqual(CARL);
+  });
+
+  it('US-11 : SET_RESULT puis RESET -> result null, participants vides', () => {
+    // Simule le flux complet ecran 3→4→modifier
+    let state = stateWith(ALICE, BOB);
+    state = sessionReducer(state, { type: 'SET_RESULT', payload: FAKE_RESULT });
+    expect(state.result).not.toBeNull();
+    state = sessionReducer(state, { type: 'RESET' });
+    expect(state.result).toBeNull();
+    expect(state.participants).toHaveLength(0);
+  });
+
+  it('US-07 : SET_RESULT puis SET_TRANSPORT conserve le result', () => {
+    // Changer le mode de transport ne doit pas perdre le resultat en cours
+    let state = stateWith(ALICE, BOB);
+    state = sessionReducer(state, { type: 'SET_RESULT', payload: FAKE_RESULT });
+    state = sessionReducer(state, { type: 'SET_TRANSPORT', payload: { mode: 'metro' } });
+    expect(state.result).toBe(FAKE_RESULT);
+    expect(state.transportMode).toBe('metro');
+  });
+
+  it('US-11 : ADD_PARTICIPANT apres SET_RESULT conserve le result', () => {
+    // Ajouter un participant (ex. depuis ecran 2 apres "Modifier") ne doit pas
+    // effacer le result du contexte tant que RESET n'est pas dispatch
+    let state = stateWith(ALICE, BOB);
+    state = sessionReducer(state, { type: 'SET_RESULT', payload: FAKE_RESULT });
+    state = sessionReducer(state, { type: 'ADD_PARTICIPANT', payload: CARL });
+    expect(state.result).toBe(FAKE_RESULT);
+    expect(state.participants).toHaveLength(3);
   });
 });
