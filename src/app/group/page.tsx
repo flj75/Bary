@@ -12,27 +12,6 @@ import { FriendStore, type Friend } from '@/lib/friends/store';
 import type { Participant } from '@/types/session';
 import type { Station } from '@/types/station';
 
-// ── Helpers ────────────────────────────────────────────────────────────
-
-const AVATAR_COLORS = [
-  'bg-violet-500', 'bg-sky-500', 'bg-emerald-500',
-  'bg-amber-500', 'bg-rose-500', 'bg-teal-500',
-];
-
-function avatarColor(name: string): string {
-  let h = 0;
-  for (const c of name) h = ((h * 31) + c.charCodeAt(0)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-
-function Avatar({ name }: { name: string }) {
-  return (
-    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${avatarColor(name)}`}>
-      {name.charAt(0).toUpperCase()}
-    </div>
-  );
-}
-
 // ── Modal nouvelle personne ────────────────────────────────────────────
 
 type ModalProps = {
@@ -61,8 +40,6 @@ function NewPersonModal({ onClose, onAdd }: ModalProps) {
           />
           <StationAutocomplete value={station} onChange={setStation} />
         </div>
-
-        {/* Toggle sauvegarder */}
         <label className="flex items-center gap-3 py-3 cursor-pointer select-none mb-5">
           <div
             role="switch"
@@ -74,12 +51,8 @@ function NewPersonModal({ onClose, onAdd }: ModalProps) {
           </div>
           <span className="text-sm text-zinc-600">Sauvegarder dans mes amis</span>
         </label>
-
         <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-xl border border-stone-200 py-3.5 text-sm font-medium text-stone-500 hover:bg-stone-50 transition-colors"
-          >
+          <button onClick={onClose} className="flex-1 rounded-xl border border-stone-200 py-3.5 text-sm font-medium text-stone-500 hover:bg-stone-50 transition-colors">
             Annuler
           </button>
           <button
@@ -110,9 +83,9 @@ export default function GroupPage() {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [tooltip, setTooltip] = useState<string | null>(null);
+  const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapRef = useRef<MapRef>(null);
 
-  // Zoom automatique pour englober tous les dots (US-05)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || participants.length < 2) return;
@@ -125,15 +98,17 @@ export default function GroupPage() {
   }, [participants]);
 
   function showTooltip(label: string) {
+    if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
     setTooltip(label);
-    setTimeout(() => setTooltip(null), 1500);
+    tooltipTimer.current = setTimeout(() => setTooltip(null), 1500);
   }
 
-  const [friends, setFriends] = useState<Friend[]>([]);
-
   useEffect(() => {
-    setFriends(FriendStore.getAll());
+    return () => { if (tooltipTimer.current) clearTimeout(tooltipTimer.current); };
   }, []);
+
+  const [friends, setFriends] = useState<Friend[]>([]);
+  useEffect(() => { setFriends(FriendStore.getAll()); }, []);
 
   const filteredFriends = friends.filter(f => {
     const q = search.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -160,7 +135,7 @@ export default function GroupPage() {
     <>
       <div className="relative h-screen overflow-hidden">
 
-        {/* Carte avec dots participants */}
+        {/* Carte plein écran avec dots orange des participants */}
         <MapView mapRef={mapRef} cssFilter="sepia(10%) brightness(1.02)">
           {participants.map((p: Participant) => (
             <Marker key={p.id} latitude={p.station.lat} longitude={p.station.lng} anchor="center">
@@ -169,82 +144,88 @@ export default function GroupPage() {
           ))}
         </MapView>
 
-        {/* Barre de progression */}
-        <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-5 pt-6 sm:px-8 sm:pt-8">
+        {/* Bouton retour ‹ — flottant sur la carte */}
+        <div className="absolute top-0 left-0 z-30 px-5 pt-6 sm:px-8 sm:pt-8">
           <button
             onClick={() => router.back()}
             className="w-9 h-9 flex items-center justify-center rounded-full bg-white shadow-sm text-zinc-600 hover:bg-stone-50 transition-colors text-xl font-light leading-none"
           >
             ‹
           </button>
-          <span className="text-[11px] font-bold tracking-[0.2em] text-brand-orange bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm">
-            ÉTAPE 01 / 03
-          </span>
-          <span className="text-[11px] font-medium text-zinc-500 bg-white/80 backdrop-blur-sm px-2.5 py-1 rounded-full">
-            {participants.length} AMI{participants.length !== 1 ? 'S' : ''}
-          </span>
         </div>
 
         {/* Card */}
         <div className="absolute bottom-0 left-0 right-0 z-20 px-4 pb-5 sm:flex sm:justify-center sm:pb-8">
           <div className="bg-white rounded-2xl shadow-md overflow-hidden sm:w-[22rem]">
-            <div className="px-5 pt-5 pb-3">
-              <h2 className="text-xl font-bold text-zinc-900 mb-3">Qui se retrouve ?</h2>
 
-              {/* Tabs */}
-              <div className="flex gap-1 mb-4">
-                {TABS.map(({ label, active }) => (
-                  <div key={label} className="relative">
+            {/* 1. Header : ÉTAPE 01/03 + N AMIS */}
+            <div className="px-5 pt-4 pb-3 flex items-center justify-between">
+              <span className="text-[11px] font-bold tracking-[0.2em] text-brand-orange">
+                ÉTAPE 01 / 03
+              </span>
+              <span className="text-[11px] font-medium text-zinc-400">
+                {participants.length} AMI{participants.length !== 1 ? 'S' : ''}
+              </span>
+            </div>
+
+            {/* 2. Titre */}
+            <div className="px-5 pb-2">
+              <h2 className="text-xl font-bold text-zinc-900">Qui se retrouve ?</h2>
+            </div>
+
+            {/* 3. Tabs */}
+            <div className="px-5 pb-3 flex gap-1">
+              {TABS.map(({ label, active }) => (
+                <div key={label} className="relative">
+                  <button
+                    onClick={() => { if (!active) showTooltip(label); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      active ? 'bg-amber-50 text-zinc-900' : 'text-zinc-400 opacity-40 cursor-pointer'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                  {tooltip === label && (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-zinc-800 text-white text-[11px] rounded-md px-2.5 py-1.5 whitespace-nowrap pointer-events-none z-30">
+                      Disponible bientôt
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Zone scrollable : 4. participants → 7. carnet */}
+            <div className="max-h-[38vh] overflow-y-auto">
+
+              {/* 4. DANS LE GROUPE · N */}
+              <div className="px-5 pb-3">
+                <p className="text-[9px] font-bold tracking-[0.18em] text-zinc-400 uppercase mb-2">
+                  Dans le groupe · {participants.length}
+                </p>
+                {participants.map((p: Participant) => (
+                  <div key={p.id} className="flex items-center gap-3 py-2 px-2 rounded-xl hover:bg-stone-50 transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-brand-orange flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                      {p.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-zinc-900 truncate">{p.name}</p>
+                      <p className="text-xs text-zinc-400 truncate">{p.station.name}</p>
+                    </div>
                     <button
-                      onClick={() => { if (!active) showTooltip(label); }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        active
-                          ? 'bg-amber-50 text-zinc-900'
-                          : 'text-zinc-400 opacity-40 cursor-pointer'
-                      }`}
+                      onClick={() => handleRemove(p.id)}
+                      className="w-6 h-6 flex items-center justify-center rounded-full bg-stone-100 hover:bg-brand-orange hover:text-white text-stone-500 transition-colors flex-shrink-0"
                     >
-                      {label}
+                      <X size={13} />
                     </button>
-                    {/* Tooltip "Disponible bientôt" — révélé au tap uniquement */}
-                    {tooltip === label && (
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-zinc-800 text-white text-[11px] rounded-md px-2.5 py-1.5 whitespace-nowrap pointer-events-none z-30">
-                        Disponible bientôt
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
 
-              {/* Contenu scrollable */}
-              <div className="max-h-[40vh] overflow-y-auto space-y-3 pr-0.5">
+              {/* 5. Séparateur */}
+              <div className="border-t border-stone-100 mx-5 mb-3" />
 
-                {/* Dans le groupe */}
-                {participants.length > 0 && (
-                  <div>
-                    <p className="text-[9px] font-bold tracking-[0.18em] text-zinc-400 uppercase mb-2">
-                      Dans le groupe · {participants.length}
-                    </p>
-                    <div className="space-y-0.5">
-                      {participants.map((p: Participant) => (
-                        <div key={p.id} className="flex items-center gap-3 py-2 px-2 rounded-xl hover:bg-stone-50 transition-colors">
-                          <Avatar name={p.name} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-zinc-900 truncate">{p.name}</p>
-                            <p className="text-xs text-zinc-400 truncate">{p.station.name}</p>
-                          </div>
-                          <button
-                            onClick={() => handleRemove(p.id)}
-                            className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-stone-200 hover:text-zinc-700 transition-colors flex-shrink-0"
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Recherche carnet */}
+              {/* 6. Champ "Rechercher un ami..." */}
+              <div className="px-5 pb-2">
                 <input
                   type="text"
                   placeholder="Rechercher un ami..."
@@ -252,50 +233,61 @@ export default function GroupPage() {
                   onChange={e => setSearch(e.target.value)}
                   className="w-full rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 placeholder:text-zinc-400"
                 />
-                <Link href="/friends" className="text-[11px] text-zinc-400 hover:text-zinc-600 transition-colors text-right block pr-0.5">
+                <Link href="/friends" className="text-[11px] text-zinc-400 hover:text-zinc-600 transition-colors text-right block pr-0.5 mt-1.5">
                   Gérer mes amis →
                 </Link>
+              </div>
 
-                {/* Liste amis ou état vide */}
+              {/* 7. Liste du carnet filtrée */}
+              <div className="px-5 pb-3">
                 {friends.length === 0 ? (
                   <p className="text-xs text-zinc-400 text-center py-1">
                     Carnet vide — ajoutez une personne ci-dessous.
                   </p>
-                ) : filteredFriends.length === 0 && search ? (
+                ) : filteredFriends.length === 0 && !search ? (
+                  <p className="text-xs text-zinc-400 text-center py-1">
+                    Tous vos amis sont dans le groupe 🎉
+                  </p>
+                ) : filteredFriends.length === 0 ? (
                   <p className="text-xs text-zinc-400 text-center py-1">
                     Aucun résultat pour «&nbsp;{search}&nbsp;»
                   </p>
                 ) : (
-                  filteredFriends.map(f => (
-                    <div key={f.id} className="flex items-center gap-3 py-2 px-2 rounded-xl hover:bg-stone-50">
-                      <Avatar name={f.name} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-zinc-900 truncate">{f.name}</p>
-                        <p className="text-xs text-zinc-400 truncate">{f.station.name}</p>
+                  <div className="space-y-0.5">
+                    {filteredFriends.map(f => (
+                      <div key={f.id} className="flex items-center gap-3 py-2 px-2 rounded-xl hover:bg-stone-50">
+                        <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center text-stone-600 text-sm font-semibold flex-shrink-0">
+                          {f.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-zinc-900 truncate">{f.name}</p>
+                          <p className="text-xs text-zinc-400 truncate">{f.station.name}</p>
+                        </div>
+                        <button
+                          onClick={() => handleAddFriend(f)}
+                          className="w-7 h-7 flex items-center justify-center rounded-full bg-stone-100 hover:bg-brand-orange hover:text-white text-stone-500 transition-colors flex-shrink-0"
+                        >
+                          <Plus size={14} />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleAddFriend(f)}
-                        className="w-7 h-7 flex items-center justify-center rounded-full bg-stone-100 hover:bg-brand-orange hover:text-white text-stone-500 transition-colors flex-shrink-0"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
-
-                {/* Nouvelle personne */}
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-stone-300 text-sm text-stone-500 hover:border-stone-400 hover:text-stone-700 transition-colors"
-                >
-                  <Plus size={14} />
-                  Nouvelle personne
-                </button>
-
               </div>
             </div>
 
-            {/* CTA */}
+            {/* 8. "+ Nouvelle personne" — fixe, toujours visible */}
+            <div className="px-5 pt-1 pb-3">
+              <button
+                onClick={() => setShowModal(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-stone-300 text-sm text-stone-500 hover:border-stone-400 hover:text-stone-700 transition-colors"
+              >
+                <Plus size={14} />
+                Nouvelle personne
+              </button>
+            </div>
+
+            {/* 9. CTA */}
             <div className="px-5 pb-5 pt-3 border-t border-stone-50">
               {canContinue ? (
                 <Link
@@ -313,9 +305,9 @@ export default function GroupPage() {
                 </button>
               )}
             </div>
+
           </div>
         </div>
-
       </div>
 
       {showModal && (
