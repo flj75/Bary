@@ -29,11 +29,21 @@ Les couleurs `zinc-*` sont tolérées **uniquement** pour le texte non-interacti
 | Paramètre | Valeur |
 |---|---|
 | Style | CartoDB Positron — `https://basemaps.cartocdn.com/gl/positron-gl-style/style.json` |
-| Filtre CSS | `sepia(10%) brightness(1.02)` |
+| Filtre CSS | `sepia(10%) brightness(1.02)` — **obligatoire sur tous les écrans**, sans exception |
 | Rendu | Tons beige/warm — jamais gris neutre |
 | Dots participants | Cercles `bg-brand-orange`, `w-4 h-4`, `ring-2 ring-white shadow-md` |
 | Pin résultat | Bleu `brand-blue` (#2563EB), à définir en Écran 4 |
 | Skeleton chargement | `bg-stone-100` + spinner `border-stone-300 border-t-stone-500` |
+
+### Usage systématique dans le code
+
+Chaque écran contenant une carte doit passer le filtre explicitement :
+
+```tsx
+<MapView cssFilter="sepia(10%) brightness(1.02)" ...>
+```
+
+Ne jamais omettre `cssFilter` sur `<MapView>` — la prop n'a pas de valeur par défaut pour rester explicite et auditable. Si un écran futur a besoin d'une carte sans filtre, c'est une exception à documenter ici.
 
 ---
 
