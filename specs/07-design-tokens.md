@@ -100,9 +100,9 @@ Ne jamais omettre `cssFilter` sur `<MapView>` — la prop n'a pas de valeur par 
 
 | Élément | Classes |
 |---|---|
-| Étiquette étape | `text-[11px] font-bold tracking-[0.2em] text-brand-orange` |
+| Étiquette étape | `text-[11px] font-bold tracking-[0.2em] text-brand-orange bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm` |
 | Compteur (N AMIS) | `text-[11px] font-medium text-zinc-500 bg-white/80 backdrop-blur-sm px-2.5 py-1 rounded-full` |
-| Bouton retour ‹ | `w-9 h-9 bg-white/80 backdrop-blur-sm rounded-full text-zinc-600 hover:bg-white` |
+| Bouton retour ‹ | `w-9 h-9 bg-white shadow-sm rounded-full text-zinc-600 hover:bg-stone-50` |
 | Badge ville | `text-[9px] font-medium tracking-[0.18em] text-zinc-400 border border-zinc-200 bg-white/60 backdrop-blur-sm px-2 py-0.5 rounded` |
 
 ---

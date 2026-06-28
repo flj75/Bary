@@ -132,7 +132,14 @@ export default function ResultPage() {
             <div className="flex items-start justify-between gap-3 mb-1.5">
               <h2 className="text-2xl font-bold text-brand-blue leading-tight">{station.name}</h2>
               <div className="flex flex-wrap gap-1 justify-end pt-0.5">
-                {station.lines.map(l => (
+                {[...station.lines].sort((a, b) => {
+                  const aNum = parseInt(a.name, 10);
+                  const bNum = parseInt(b.name, 10);
+                  if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+                  if (!isNaN(aNum)) return -1;
+                  if (!isNaN(bNum)) return 1;
+                  return a.name.localeCompare(b.name);
+                }).map(l => (
                   <span
                     key={l.id}
                     className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-md leading-none"

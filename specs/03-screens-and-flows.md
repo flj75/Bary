@@ -25,9 +25,8 @@
 ### Éléments
 - En-tête : logo **Bary** + badge ville **"PARIS"**
 - Carte MapLibre en fond (style épuré, monochrome gris)
-- Tagline : *"Le point de rencontre le plus équitable pour votre groupe."*
-- CTA principal : **"Créer un groupe"** (bouton orange plein)
-- Lien secondaire : **"Mes amis"** → accès au carnet d'amis
+- Tagline : *"Le point de rdv, calculé pour tout le groupe."*
+- CTA principal : **"Créer un point de rencontre"** (bouton orange plein)
 
 ### États
 | État | Affichage |
@@ -50,6 +49,7 @@
   - Section **DANS LE GROUPE · N** : liste des participants (avatar initiale + nom + station + bouton ×)
   - Champ : *"Rechercher un ami..."* (filtre le carnet en temps réel)
   - Liste filtrée du carnet : avatar + nom + station + bouton **+**
+  - Lien discret **"Gérer mes amis →"** (accès au carnet d'amis)
   - Bouton **"+ Nouvelle personne"** (bordure pointillée)
   - CTA : **"Continuer · N amis"** (orange, activé dès 2 participants)
 
@@ -57,8 +57,8 @@
 | Action | Résultat |
 |---|---|
 | Tap **+** sur un ami du carnet | Ajout au groupe + dot sur la carte |
-| Tap **×** sur un participant (groupe > 2) | Retrait + disparition du dot |
-| Tap **×** avec groupe = 2 | Bouton × désactivé (grisé) |
+| Tap **×** sur un participant | Retrait + disparition du dot |
+| Tap **×** avec groupe = 2 | Bouton × toujours actif — CTA "Continuer" se désactive (minimum 2 participants) |
 | Saisie dans le champ recherche | Filtrage temps réel (insensible casse/accents) |
 | Tap **"+ Nouvelle personne"** | Ouverture de la modale de création |
 | Ajout du 2e participant | CTA "Continuer" s'active |
@@ -77,11 +77,6 @@ MapLibre charge ses tuiles de façon asynchrone. Pendant l'initialisation (parti
 
 Ce comportement s'applique à tous les écrans contenant une carte (Écrans 1, 2, 3, 4).
 
-### Bouton × désactivé — tooltip explicatif
-Quand le groupe est à exactement 2 participants, les boutons × sont grisés. Si l'utilisateur clique (mobile) ou survole (desktop) un bouton × désactivé :
-- **Tooltip** : *"Minimum 2 personnes pour calculer un point de rencontre"*
-- Sur mobile : le tooltip s'affiche sous forme de toast en bas d'écran (1,5 s), pour contourner l'absence de survol sur tactile
-
 ### Zoom carte
 La carte ajuste automatiquement son emprise (`fitBounds`) pour englober tous les dots visibles.
 
@@ -98,9 +93,9 @@ La carte ajuste automatiquement son emprise (`fitBounds`) pour englober tous les
   - Mention : **MÉTRO PAR DÉFAUT** (label discret)
   - Sélecteur transport (pills horizontales) :
     - **Métro / RER / Tram** — actif, présélectionné
-    - À pied — désactivé, badge *"Bientôt"*
-    - Vélo — désactivé, badge *"Bientôt"*
-    - Voiture — désactivé, badge *"Bientôt"*
+    - À pied — désactivé, tooltip *"Disponible bientôt"* au tap
+    - Vélo — désactivé, tooltip *"Disponible bientôt"* au tap
+    - Voiture — désactivé, tooltip *"Disponible bientôt"* au tap
   - CTA : **"Calculer le point →"** (orange)
 
 ### Note MVP
@@ -154,9 +149,9 @@ Ce délai est intentionnel et documenté — il ne masque pas une lenteur mais c
 
 ### Format de l'URL partageable
 ```
-bary.app/?s=[station-id]&g=[prenom:station-id,prenom:station-id,...]
+bary.app/result?s=[station-id]&g=[prenom:station-id,prenom:station-id,...]
 ```
-Exemple : `bary.app/?s=bastille&g=Hugo:chatelet,Sofia:pigalle,Karim:denfert,François:nation`
+Exemple : `bary.app/result?s=bastille&g=Hugo:chatelet,Sofia:pigalle,Karim:denfert,François:nation`
 
 Un destinataire qui ouvre ce lien voit directement l'Écran 4 avec le résultat pré-calculé.
 
@@ -169,10 +164,10 @@ Si Hugo déménage à Oberkampf après le partage, le lien affiche toujours son 
 
 ## Écran 5 — Carnet d'amis
 
-**Rôle** : gérer la liste persistante d'amis (accessible depuis l'Écran 1 via "Mes amis").
+**Rôle** : gérer la liste persistante d'amis (accessible depuis l'Écran 2 via "Gérer mes amis →").
 
 ### Éléments
-- En-tête : **"Mes amis"** + bouton **‹** (retour Écran 1)
+- En-tête : **"Mes amis"** + bouton **‹** (retour Écran 2 — `router.back()`)
 - Champ de recherche : *"Rechercher..."*
 - Liste des amis (avatar + nom + station par défaut)
 - État vide : *"Aucun ami enregistré"* + CTA **"+ Ajouter un ami"**
@@ -182,7 +177,7 @@ Si Hugo déménage à Oberkampf après le partage, le lien affiche toujours son 
 | Action | Résultat |
 |---|---|
 | Tap sur un ami | Ouverture modale d'édition (nom + station) |
-| Swipe gauche / tap × | Demande de confirmation → suppression |
+| Tap **"× Supprimer"** (texte affiché sous la ligne) | Demande de confirmation → suppression (swipe non implémenté en MVP) |
 | Tap "+ Ajouter un ami" | Modale de création (même que l'Écran 2) |
 | Saisie dans le champ recherche | Filtrage temps réel par nom |
 | Aucun résultat de recherche | Message *"Aucun ami trouvé"* + CTA *"Ajouter [prénom]"* |

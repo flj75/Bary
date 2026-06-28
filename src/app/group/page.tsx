@@ -8,6 +8,7 @@ import { Marker, type MapRef } from 'react-map-gl/maplibre';
 import { MapView } from '@/components/map/MapView';
 import { StationAutocomplete } from '@/components/station/StationAutocomplete';
 import { useSession } from '@/context/SessionContext';
+import { FriendStore, type Friend } from '@/lib/friends/store';
 import type { Participant } from '@/types/session';
 import type { Station } from '@/types/station';
 
@@ -128,20 +129,27 @@ export default function GroupPage() {
     setTimeout(() => setTooltip(null), 1500);
   }
 
-  // Carnet d'amis localStorage — vide jusqu'à l'implémentation de US-12/15
-  const friends: { id: string; name: string; stationId: string; stationName: string }[] = [];
+  const [friends, setFriends] = useState<Friend[]>([]);
+
+  useEffect(() => {
+    setFriends(FriendStore.getAll());
+  }, []);
 
   const filteredFriends = friends.filter(f => {
     const q = search.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     const n = f.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    return n.includes(q) && !participants.some(p => p.id === f.id);
+    return n.includes(q) && !participants.some(p => p.station.id === f.station.id);
   });
 
   const canContinue = participants.length >= 2;
 
-  function handleAddPerson(name: string, station: Station, _save: boolean) {
-    // TODO US-12 : persister dans le carnet localStorage quand _save === true
+  function handleAddPerson(name: string, station: Station, save: boolean) {
+    if (save) FriendStore.add(name, station);
     dispatch({ type: 'ADD_PARTICIPANT', payload: { id: crypto.randomUUID(), name, station } });
+  }
+
+  function handleAddFriend(f: Friend) {
+    dispatch({ type: 'ADD_PARTICIPANT', payload: { id: crypto.randomUUID(), name: f.name, station: f.station } });
   }
 
   function handleRemove(id: string) {
@@ -244,6 +252,9 @@ export default function GroupPage() {
                   onChange={e => setSearch(e.target.value)}
                   className="w-full rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 placeholder:text-zinc-400"
                 />
+                <Link href="/friends" className="text-[11px] text-zinc-400 hover:text-zinc-600 transition-colors text-right block pr-0.5">
+                  Gérer mes amis →
+                </Link>
 
                 {/* Liste amis ou état vide */}
                 {friends.length === 0 ? (
@@ -260,9 +271,12 @@ export default function GroupPage() {
                       <Avatar name={f.name} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-zinc-900 truncate">{f.name}</p>
-                        <p className="text-xs text-zinc-400 truncate">{f.stationName}</p>
+                        <p className="text-xs text-zinc-400 truncate">{f.station.name}</p>
                       </div>
-                      <button className="w-7 h-7 flex items-center justify-center rounded-full bg-stone-100 hover:bg-brand-orange hover:text-white text-stone-500 transition-colors flex-shrink-0">
+                      <button
+                        onClick={() => handleAddFriend(f)}
+                        className="w-7 h-7 flex items-center justify-center rounded-full bg-stone-100 hover:bg-brand-orange hover:text-white text-stone-500 transition-colors flex-shrink-0"
+                      >
                         <Plus size={14} />
                       </button>
                     </div>
