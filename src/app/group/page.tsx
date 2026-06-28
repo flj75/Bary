@@ -109,8 +109,6 @@ export default function GroupPage() {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [tooltip, setTooltip] = useState<string | null>(null);
-  // TODO v2 : raffiner par participant id pour éviter la superposition de tooltips
-  const [removeTooltip, setRemoveTooltip] = useState(false);
   const mapRef = useRef<MapRef>(null);
 
   // Zoom automatique pour englober tous les dots (US-05)
@@ -130,11 +128,6 @@ export default function GroupPage() {
     setTimeout(() => setTooltip(null), 1500);
   }
 
-  function showRemoveTooltip() {
-    setRemoveTooltip(true);
-    setTimeout(() => setRemoveTooltip(false), 1500);
-  }
-
   // Carnet d'amis localStorage — vide jusqu'à l'implémentation de US-12/15
   const friends: { id: string; name: string; stationId: string; stationName: string }[] = [];
 
@@ -144,7 +137,6 @@ export default function GroupPage() {
     return n.includes(q) && !participants.some(p => p.id === f.id);
   });
 
-  const canRemove = participants.length > 2;
   const canContinue = participants.length >= 2;
 
   function handleAddPerson(name: string, station: Station, _save: boolean) {
@@ -153,7 +145,7 @@ export default function GroupPage() {
   }
 
   function handleRemove(id: string) {
-    if (canRemove) dispatch({ type: 'REMOVE_PARTICIPANT', payload: { id } });
+    dispatch({ type: 'REMOVE_PARTICIPANT', payload: { id } });
   }
 
   return (
@@ -232,24 +224,12 @@ export default function GroupPage() {
                             <p className="text-sm font-semibold text-zinc-900 truncate">{p.name}</p>
                             <p className="text-xs text-zinc-400 truncate">{p.station.name}</p>
                           </div>
-                          <div className="relative flex-shrink-0">
-                            <button
-                              onClick={() => canRemove ? handleRemove(p.id) : showRemoveTooltip()}
-                              disabled={!canRemove}
-                              className={`w-6 h-6 flex items-center justify-center rounded-full transition-colors ${
-                                canRemove
-                                  ? 'text-zinc-400 hover:bg-stone-200 hover:text-zinc-700'
-                                  : 'text-stone-200 cursor-not-allowed'
-                              }`}
-                            >
-                              <X size={13} />
-                            </button>
-                            {!canRemove && removeTooltip && (
-                              <div className="absolute bottom-full right-0 mb-1.5 bg-zinc-800 text-white text-[11px] rounded-md px-2.5 py-1.5 whitespace-nowrap pointer-events-none z-30">
-                                Minimum 2 personnes pour calculer un point de rencontre
-                              </div>
-                            )}
-                          </div>
+                          <button
+                            onClick={() => handleRemove(p.id)}
+                            className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-stone-200 hover:text-zinc-700 transition-colors flex-shrink-0"
+                          >
+                            <X size={13} />
+                          </button>
                         </div>
                       ))}
                     </div>
