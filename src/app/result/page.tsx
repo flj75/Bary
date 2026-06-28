@@ -53,14 +53,6 @@ export default function ResultPage() {
     if (!result) router.replace('/');
   }, [result, router]);
 
-  // Zoom animé vers la station résultat une fois la carte chargée
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !result) return;
-    const { lat, lng } = result.optimal.station;
-    map.flyTo({ center: [lng, lat], zoom: 13, duration: 600 });
-  }, [result]);
-
   async function handleShare() {
     if (!result || participants.length > 12) return;
     const url = buildShareUrl(result, participants);
@@ -230,7 +222,7 @@ export default function ResultPage() {
                 </button>
                 {shareDisabled && (
                   <p className="text-[10px] text-zinc-400 text-center mt-1.5 leading-snug px-1">
-                    Disponible pour les groupes de 12 personnes maximum.
+                    Le lien de partage est disponible pour les groupes de 12 personnes maximum.
                   </p>
                 )}
               </div>
