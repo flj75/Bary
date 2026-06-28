@@ -109,6 +109,7 @@ export default function GroupPage() {
 
   const [friends, setFriends] = useState<Friend[]>([]);
   useEffect(() => { setFriends(FriendStore.getAll()); }, []);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const filteredFriends = friends.filter(f => {
     const q = search.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -125,7 +126,14 @@ export default function GroupPage() {
   const canContinue = participants.length >= 2;
 
   function handleAddPerson(name: string, station: Station, save: boolean) {
-    if (save) FriendStore.add(name, station);
+    if (save) {
+      try {
+        FriendStore.add(name, station);
+      } catch {
+        setToastMsg('Impossible de sauvegarder — stockage plein');
+        setTimeout(() => setToastMsg(null), 2000);
+      }
+    }
     dispatch({ type: 'ADD_PARTICIPANT', payload: { id: crypto.randomUUID(), name, station } });
   }
 
@@ -322,6 +330,13 @@ export default function GroupPage() {
 
       {showModal && (
         <NewPersonModal onClose={() => setShowModal(false)} onAdd={handleAddPerson} />
+      )}
+
+      {/* Toast stockage plein (BUG-02) */}
+      {toastMsg && (
+        <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40 bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg pointer-events-none whitespace-nowrap">
+          {toastMsg}
+        </div>
       )}
     </>
   );

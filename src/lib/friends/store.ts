@@ -18,7 +18,11 @@ function read(): Friend[] {
 }
 
 function write(friends: Friend[]): void {
-  localStorage.setItem(KEY, JSON.stringify(friends));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(friends));
+  } catch {
+    throw new Error('storage_full');
+  }
 }
 
 export const FriendStore = {

@@ -129,6 +129,7 @@ export default function FriendsPage() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<ModalState>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setFriends(FriendStore.getAll());
@@ -138,22 +139,39 @@ export default function FriendsPage() {
     setFriends(FriendStore.getAll());
   }
 
+  function showStorageFullToast() {
+    setToastMsg('Impossible de sauvegarder — stockage plein');
+    setTimeout(() => setToastMsg(null), 2000);
+  }
+
   function handleAdd(name: string, station: Station) {
-    FriendStore.add(name, station);
-    refresh();
-    setModal(null);
+    try {
+      FriendStore.add(name, station);
+      refresh();
+      setModal(null);
+    } catch {
+      showStorageFullToast();
+    }
   }
 
   function handleEdit(id: string, name: string, station: Station) {
-    FriendStore.update(id, { name, station });
-    refresh();
-    setModal(null);
+    try {
+      FriendStore.update(id, { name, station });
+      refresh();
+      setModal(null);
+    } catch {
+      showStorageFullToast();
+    }
   }
 
   function handleDelete(id: string) {
-    FriendStore.remove(id);
-    refresh();
-    setModal(null);
+    try {
+      FriendStore.remove(id);
+      refresh();
+      setModal(null);
+    } catch {
+      showStorageFullToast();
+    }
   }
 
   const filtered = friends.filter(f =>
@@ -291,6 +309,13 @@ export default function FriendsPage() {
           onClose={() => setModal(null)}
           onConfirm={() => handleDelete(modal.friend.id)}
         />
+      )}
+
+      {/* Toast stockage plein (BUG-02) */}
+      {toastMsg && (
+        <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40 bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg pointer-events-none whitespace-nowrap">
+          {toastMsg}
+        </div>
       )}
     </>
   );

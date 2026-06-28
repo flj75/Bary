@@ -3,7 +3,7 @@
 **US concernée** : `US-12`
 **Sévérité** : Mineure — non bloquant MVP, l'app reste utilisable
 **Occurrence** : Faible — localStorage plein, rare en pratique
-**Statut** : Validé
+**Statut** : Corrigé
 
 ### Comportement observé
 
@@ -44,3 +44,19 @@ Code concerné : `src/lib/friends/store.ts`, fonction `write()` — aucun `try/c
 ### Validation
 - Validé par : François Le Jacques
 - Commentaire :
+
+### Correctif appliqué
+
+**Cause racine** : `FriendStore.write()` appelait `localStorage.setItem()` sans aucune protection. En cas de quota dépassé, la `DOMException` remontait brute jusqu'à l'appelant, sans être transformée ni affichée.
+
+**Correctif en trois couches** :
+
+1. `src/lib/friends/store.ts` — `write()` entoure `setItem()` d'un `try/catch` et relance une `Error('storage_full')` typée. Les appelants (`add`, `update`, `remove`) laissent cette erreur se propager naturellement — c'est le comportement attendu par les composants.
+
+2. `src/app/friends/page.tsx` — `handleAdd`, `handleEdit`, `handleDelete` ont chacun un `try/catch` local. En cas d'erreur, la modale reste ouverte (l'opération a échoué) et un toast s'affiche 2 secondes via un state `toastMsg`.
+
+3. `src/app/group/page.tsx` — `handleAddPerson` attrape l'erreur de `FriendStore.add` dans le branch `if (save)`. La personne est tout de même ajoutée au groupe en session (le `dispatch` s'exécute toujours) — seule la persistance dans le carnet a échoué. Le toast informe l'utilisateur.
+
+**Style du toast** : copie exacte du toast "Lien copié !" de `result/page.tsx` (`bg-zinc-900 text-white rounded-full` etc.), positionné en `fixed bottom-32` pour rester visible sur des pages scrollables.
+
+**Tests** : le test BUG-02 existant (`expect(() => FriendStore.add(...)).toThrow()`) passe toujours — `write()` lève bien une erreur lorsque `setItem` échoue.
