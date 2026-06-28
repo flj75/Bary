@@ -7,11 +7,13 @@ type Action =
   | { type: 'ADD_PARTICIPANT'; payload: Participant }
   | { type: 'REMOVE_PARTICIPANT'; payload: { id: string } }
   | { type: 'SET_TRANSPORT'; payload: { mode: SessionState['transportMode'] } }
+  | { type: 'SET_RESULT'; payload: SessionState['result'] }
   | { type: 'RESET' };
 
 const initialState: SessionState = {
   participants: [],
   transportMode: 'metro',
+  result: null,
 };
 
 export function sessionReducer(state: SessionState, action: Action): SessionState {
@@ -25,6 +27,8 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
       };
     case 'SET_TRANSPORT':
       return { ...state, transportMode: action.payload.mode };
+    case 'SET_RESULT':
+      return { ...state, result: action.payload };
     case 'RESET':
       return initialState;
   }
