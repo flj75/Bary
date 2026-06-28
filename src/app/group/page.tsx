@@ -116,6 +116,12 @@ export default function GroupPage() {
     return n.includes(q) && !participants.some(p => p.station.id === f.station.id);
   });
 
+  const searchMatchesParticipant = search.length > 0 && friends.some(f => {
+    const q = search.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const n = f.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    return n.includes(q) && participants.some(p => p.station.id === f.station.id);
+  });
+
   const canContinue = participants.length >= 2;
 
   function handleAddPerson(name: string, station: Station, save: boolean) {
@@ -247,6 +253,10 @@ export default function GroupPage() {
                 ) : filteredFriends.length === 0 && !search ? (
                   <p className="text-xs text-zinc-400 text-center py-1">
                     Tous vos amis sont dans le groupe 🎉
+                  </p>
+                ) : filteredFriends.length === 0 && searchMatchesParticipant ? (
+                  <p className="text-xs text-zinc-400 text-center py-1">
+                    «&nbsp;{search}&nbsp;» est déjà dans le groupe
                   </p>
                 ) : filteredFriends.length === 0 ? (
                   <p className="text-xs text-zinc-400 text-center py-1">
