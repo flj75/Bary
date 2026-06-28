@@ -14,7 +14,7 @@ const initialState: SessionState = {
   transportMode: 'metro',
 };
 
-function sessionReducer(state: SessionState, action: Action): SessionState {
+export function sessionReducer(state: SessionState, action: Action): SessionState {
   switch (action.type) {
     case 'ADD_PARTICIPANT':
       return { ...state, participants: [...state.participants, action.payload] };

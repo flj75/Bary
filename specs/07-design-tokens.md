@@ -67,7 +67,8 @@ Ne jamais omettre `cssFilter` sur `<MapView>` — la prop n'a pas de valeur par 
 | **Primaire** | `bg-brand-orange text-white font-semibold rounded-xl py-4 text-[15px] hover:opacity-90 active:scale-[0.98] transition-all` |
 | **Secondaire chaud** | `bg-amber-50 text-stone-600 font-normal rounded-xl py-4 text-[15px] hover:bg-amber-100 active:scale-[0.98] transition-all` |
 | **Ghost** | `border border-dashed border-stone-300 text-stone-500 rounded-xl hover:border-stone-400 hover:text-stone-700 transition-colors` |
-| **Désactivé** | `bg-stone-100 text-stone-400 font-semibold rounded-xl py-4 cursor-not-allowed` (pas d'`opacity-50` — contraste lisible) |
+| **Primaire désactivé** | `bg-brand-orange opacity-50 text-white font-semibold rounded-xl py-4 cursor-not-allowed` (jamais beige — le CTA reste orange même inactif) |
+| **Secondaire désactivé** | `bg-stone-100 text-stone-400 font-semibold rounded-xl py-4 cursor-not-allowed` |
 | Icônes action (×, +) | `bg-stone-100 hover:bg-brand-orange hover:text-white text-stone-500` |
 
 ---
