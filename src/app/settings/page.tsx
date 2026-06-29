@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Marker, type MapRef } from 'react-map-gl/maplibre';
 import { MapView } from '@/components/map/MapView';
 import { useSession } from '@/context/SessionContext';
@@ -16,11 +17,20 @@ const TRANSPORT_OPTIONS = [
   { label: 'Voiture', value: 'car', available: false },
 ];
 
+type CalcError = 'dataset_error' | 'station_not_found' | 'calc_failed';
+
+const CALC_ERROR_MESSAGES: Record<CalcError, string> = {
+  dataset_error: 'Impossible de charger les stations. Vérifiez votre connexion et réessayez.',
+  station_not_found: 'Une station du groupe est introuvable dans le réseau. Veuillez revérifier les stations des participants.',
+  calc_failed: 'Le calcul n\'a pas pu aboutir. Vérifiez les stations sélectionnées ou réessayez.',
+};
+
 export default function SettingsPage() {
   const router = useRouter();
   const { state, dispatch } = useSession();
   const { participants, transportMode } = state;
   const [calculating, setCalculating] = useState(false);
+  const [calcError, setCalcError] = useState<CalcError | null>(null);
   const [tooltip, setTooltip] = useState<string | null>(null);
   const mapRef = useRef<MapRef>(null);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,13 +59,33 @@ export default function SettingsPage() {
   async function handleCalculate() {
     if (calculating) return;
     setCalculating(true);
+    setCalcError(null);
 
-    const res = await fetch('/data/stations.json');
-    const allStations: Station[] = await res.json();
+    let allStations: Station[];
+    try {
+      const res = await fetch('/data/stations.json');
+      if (!res.ok) throw new Error();
+      allStations = await res.json();
+      if (!allStations.length) throw new Error();
+    } catch {
+      setCalcError('dataset_error');
+      setCalculating(false);
+      return;
+    }
+
+    // US-16 Scénario 2 : filet de sécurité si un stationId ne se résout plus dans le dataset
+    const stationIds = new Set(allStations.map(s => s.id));
+    if (participants.some(p => !stationIds.has(p.station.id))) {
+      setCalcError('station_not_found');
+      setCalculating(false);
+      return;
+    }
 
     const result = findMeetingPoint(participants.map(p => p.station), allStations);
 
+    // US-17 Scénario 2 : candidates vides après fallback → résultat null
     if (!result) {
+      setCalcError('calc_failed');
       setCalculating(false);
       return;
     }
@@ -139,20 +169,44 @@ export default function SettingsPage() {
 
           {/* CTA */}
           <div className="px-5 pb-5 pt-3 border-t border-stone-50">
-            <button
-              onClick={handleCalculate}
-              disabled={calculating}
-              className="w-full bg-brand-orange text-white font-semibold rounded-xl py-4 text-[15px] hover:opacity-90 active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center gap-2.5"
-            >
-              {calculating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  Calcul en cours…
-                </>
-              ) : (
-                'Calculer le point →'
-              )}
-            </button>
+            {calcError ? (
+              <div>
+                <p className="text-xs text-rose-500 leading-relaxed mb-3">
+                  {CALC_ERROR_MESSAGES[calcError]}
+                </p>
+                {calcError === 'dataset_error' ? (
+                  <button
+                    onClick={handleCalculate}
+                    disabled={calculating}
+                    className="w-full bg-brand-orange text-white font-semibold rounded-xl py-4 text-[15px] hover:opacity-90 active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:active:scale-100"
+                  >
+                    Réessayer
+                  </button>
+                ) : (
+                  <Link
+                    href="/group"
+                    className="block w-full text-center rounded-xl border border-stone-200 py-4 text-[15px] font-medium text-stone-600 hover:bg-stone-50 transition-colors"
+                  >
+                    ← Modifier le groupe
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={handleCalculate}
+                disabled={calculating}
+                className="w-full bg-brand-orange text-white font-semibold rounded-xl py-4 text-[15px] hover:opacity-90 active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center gap-2.5"
+              >
+                {calculating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    Calcul en cours…
+                  </>
+                ) : (
+                  'Calculer le point →'
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -18,13 +18,17 @@ export function StationAutocomplete({ value, onChange, placeholder = 'Station de
   const [stations, setStations] = useState<Station[]>([]);
   const [results, setResults] = useState<Station[]>([]);
   const [open, setOpen] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setFetchError(false);
     fetch('/data/stations.json')
-      .then(r => r.json())
-      .then((data: Station[]) => setStations(data));
-  }, []);
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((data: Station[]) => setStations(data))
+      .catch(() => setFetchError(true));
+  }, [retryKey]);
 
   useEffect(() => {
     if (!query.trim()) { setResults([]); setOpen(false); return; }
@@ -47,13 +51,28 @@ export function StationAutocomplete({ value, onChange, placeholder = 'Station de
   return (
     <div ref={containerRef} className="relative">
       <input
-        className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 placeholder:text-zinc-400"
-        placeholder={placeholder}
+        className={`w-full rounded-xl border border-stone-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 placeholder:text-zinc-400 ${fetchError ? 'opacity-50 cursor-not-allowed bg-stone-50' : ''}`}
+        placeholder={fetchError ? 'Stations indisponibles' : placeholder}
         value={query}
-        onChange={e => { setQuery(e.target.value); }}
+        disabled={fetchError}
+        onChange={e => setQuery(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
       />
-      {open && (
+      {fetchError && (
+        <div className="mt-2 space-y-1.5">
+          <p className="text-xs text-rose-500 leading-snug">
+            Impossible de charger les stations. Vérifiez votre connexion et réessayez.
+          </p>
+          <button
+            type="button"
+            onClick={() => setRetryKey(k => k + 1)}
+            className="text-xs text-brand-orange font-medium hover:opacity-80 transition-opacity"
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
+      {open && !fetchError && (
         <ul className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-stone-100 shadow-lg z-50 max-h-48 overflow-y-auto">
           {results.map(s => (
             <li key={s.id}>
