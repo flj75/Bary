@@ -19,11 +19,14 @@ type ModalProps = {
   onAdd: (name: string, station: Station, save: boolean) => void;
 };
 
+const FORBIDDEN_NAME_CHARS = /[,|&=+#?]/;
+
 function NewPersonModal({ onClose, onAdd }: ModalProps) {
   const [name, setName] = useState('');
   const [station, setStation] = useState<Station | null>(null);
   const [save, setSave] = useState(true);
-  const canSubmit = name.trim().length > 0 && station !== null;
+  const nameHasError = name.trim().length > 0 && FORBIDDEN_NAME_CHARS.test(name);
+  const canSubmit = name.trim().length > 0 && !nameHasError && station !== null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -31,15 +34,23 @@ function NewPersonModal({ onClose, onAdd }: ModalProps) {
       <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm px-6 pt-6 pb-8 shadow-xl">
         <h3 className="text-lg font-bold text-zinc-900 mb-5">Nouvelle personne</h3>
         <div className="space-y-3 mb-4">
-          <input
-            autoFocus
-            className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 placeholder:text-zinc-400"
-            placeholder="Prénom"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
+          <div>
+            <input
+              autoFocus
+              className={`w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 placeholder:text-zinc-400 ${nameHasError ? 'border-rose-300 focus:ring-rose-200' : 'border-stone-200 focus:ring-brand-orange/30'}`}
+              placeholder="Prénom"
+              value={name}
+              onChange={e => setName(e.target.value)}
+            />
+            {nameHasError && (
+              <p className="text-xs text-rose-500 mt-1.5 leading-snug">
+                Les caractères spéciaux (, | & = + # ?) ne sont pas autorisés
+              </p>
+            )}
+          </div>
           <StationAutocomplete value={station} onChange={setStation} />
         </div>
+
         <label className="flex items-center gap-3 py-3 cursor-pointer select-none mb-5">
           <div
             role="switch"

@@ -3,7 +3,7 @@
 **US concernée** : `US-10` Scénario 2
 **Sévérité** : Moyenne — le partage par lien est une feature Should, pas Must. L'app reste pleinement utilisable sans cette feature. À corriger avant le lancement public mais non bloquant pour les tests utilisateurs internes.
 **Occurrence** : Haute — 100 % des liens partagés touchés
-**Statut** : Validé
+**Statut** : Corrigé
 
 ### Comportement observé
 
@@ -45,7 +45,7 @@ Le paramètre `s` (stationId résultat) n'est pas affecté — aucun split néce
 
 ### Note triage
 
-Non bloquant MVP — US-10 Scénario 2 est marqué TODO dans le code (`src/app/result/page.tsx`, ligne 39). À implémenter et corriger ensemble avant le lancement public.
+Corrigé dans US-18 — `buildShareUrl` utilise désormais `|` comme séparateur, et la page `/result` reconstruit le résultat côté client à partir des params URL.
 
 ### Validation
 - Validé par : François Le Jacques

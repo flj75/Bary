@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { Marker, type MapRef } from 'react-map-gl/maplibre';
 import { MapView } from '@/components/map/MapView';
 import { useSession } from '@/context/SessionContext';
+import { findMeetingPoint } from '@/lib/algorithm';
 import type { Participant } from '@/types/session';
+import type { Station } from '@/types/station';
 import type { MeetingPointResult } from '@/lib/algorithm';
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -32,11 +34,17 @@ function Avatar({ name }: { name: string }) {
 
 function buildShareUrl(result: MeetingPointResult, participants: Participant[]): string {
   const s = encodeURIComponent(result.optimal.station.id);
+  // Les noms sont double-encodés pour `|` : encodeURIComponent encode `|` en `%7C`,
+  // mais URLSearchParams.get décode %7C → `|` à la lecture, ce qui casserait le split.
+  // On encode d'abord normalement, puis on remplace `%7C` par `%257C` (double-encodage)
+  // afin que le destinataire retrouve `%7C` après le premier décodage automatique,
+  // et le vrai nom après un second decodeURIComponent au moment du parsing.
+  const encodeNameSafe = (name: string) =>
+    encodeURIComponent(name).replace(/%7C/gi, '%257C');
   const g = participants
-    .map(p => `${encodeURIComponent(p.name)}:${encodeURIComponent(p.station.id)}`)
+    .map(p => `${encodeNameSafe(p.name)}|${encodeURIComponent(p.station.id)}`)
     .join(',');
   return `${window.location.origin}/result?s=${s}&g=${g}`;
-  // TODO US-10 Scénario 2 : décoder ces params à l'arrivée pour afficher le résultat sans session
 }
 
 // ── Page ───────────────────────────────────────────────────────────────
@@ -45,17 +53,74 @@ export default function ResultPage() {
   const router = useRouter();
   const { state } = useSession();
   const { result, participants } = state;
+
+  const [urlParticipants, setUrlParticipants] = useState<Participant[] | null>(null);
+  const [urlResult, setUrlResult] = useState<MeetingPointResult | null>(null);
+  // Initialisé à `true` quand il n'y a pas de session pour éviter un flash blanc
+  // entre le premier rendu et le tick où l'effet lance le fetch.
+  const [urlLoading, setUrlLoading] = useState(!result);
+  const [invalidLink, setInvalidLink] = useState(false);
   const [shareState, setShareState] = useState<'idle' | 'copied' | 'fallback'>('idle');
   const [fallbackUrl, setFallbackUrl] = useState('');
   const mapRef = useRef<MapRef>(null);
+  const urlCheckDone = useRef(false);
 
+  // US-18 : reconstruit le résultat depuis les query params quand pas de session
   useEffect(() => {
-    if (!result) router.replace('/');
+    if (result) return;
+    if (urlCheckDone.current) return;
+    urlCheckDone.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const g = params.get('g');
+    if (!g) {
+      router.replace('/');
+      return;
+    }
+
+    setUrlLoading(true);
+    fetch('/data/stations.json')
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((allStations: Station[]) => {
+        const stationMap = new Map<string, Station>(allStations.map(st => [st.id, st]));
+
+        // BUG-01 corrigé : séparateur | non ambigu avec les stationIds IDFM:xxx.
+        // Les noms sont double-encodés dans buildShareUrl (voir commentaire là-bas) :
+        // après le premier décodage automatique de URLSearchParams.get, le nom peut
+        // encore contenir `%7C` (encodage résiduel d'un `|` dans le nom). Un second
+        // decodeURIComponent est donc nécessaire sur la partie nom uniquement.
+        const parsed: Participant[] = g.split(',').map((entry, i) => {
+          const sepIdx = entry.indexOf('|');
+          if (sepIdx === -1) throw new Error();
+          // Double-décodage du nom pour récupérer les `|` éventuels dans le prénom
+          const name = decodeURIComponent(decodeURIComponent(entry.slice(0, sepIdx)));
+          const stationId = decodeURIComponent(entry.slice(sepIdx + 1));
+          if (!name || !stationId) throw new Error();
+          const station = stationMap.get(stationId);
+          if (!station) throw new Error();
+          return { id: `url-${i}`, name, station };
+        });
+
+        const computed = findMeetingPoint(parsed.map(p => p.station), allStations);
+        if (!computed) throw new Error();
+
+        setUrlParticipants(parsed);
+        setUrlResult(computed);
+        setUrlLoading(false);
+      })
+      .catch(() => {
+        setUrlLoading(false);
+        setInvalidLink(true);
+        setTimeout(() => router.replace('/?error=invalid_link'), 2000);
+      });
   }, [result, router]);
 
+  const displayResult = result ?? urlResult;
+  const displayParticipants: Participant[] = result ? participants : (urlParticipants ?? []);
+
   async function handleShare() {
-    if (!result || participants.length > 12) return;
-    const url = buildShareUrl(result, participants);
+    if (!displayResult || displayParticipants.length > 12) return;
+    const url = buildShareUrl(displayResult, displayParticipants);
     try {
       await navigator.clipboard.writeText(url);
       setShareState('copied');
@@ -66,16 +131,32 @@ export default function ResultPage() {
     }
   }
 
-  if (!result) return null;
+  if (invalidLink) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-stone-50">
+        <p className="text-zinc-600 font-medium">Lien invalide</p>
+      </div>
+    );
+  }
 
-  const { optimal, metrics } = result;
+  if (urlLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-stone-50">
+        <div className="w-6 h-6 border-2 border-brand-orange/30 border-t-brand-orange rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!displayResult) return null;
+
+  const { optimal, metrics } = displayResult;
   const { station } = optimal;
 
   const furthestNames = metrics.furthestParticipants
-    .map(s => participants.find(p => p.station === s)?.name ?? s.name)
+    .map(s => displayParticipants.find(p => p.station === s)?.name ?? s.name)
     .join(' & ');
 
-  const shareDisabled = participants.length > 12;
+  const shareDisabled = displayParticipants.length > 12;
 
   return (
     <div className="relative h-screen overflow-hidden">
@@ -87,7 +168,7 @@ export default function ResultPage() {
         initialViewState={{ latitude: station.lat, longitude: station.lng, zoom: 12 }}
       >
         {/* Dots orange participants */}
-        {participants.map(p => (
+        {displayParticipants.map(p => (
           <Marker key={p.id} latitude={p.station.lat} longitude={p.station.lng} anchor="center">
             <div className="w-4 h-4 rounded-full bg-brand-orange ring-2 ring-white shadow-md" />
           </Marker>
@@ -116,7 +197,7 @@ export default function ResultPage() {
           ÉTAPE 03 / 03
         </span>
         <span className="text-[11px] font-medium text-zinc-500 bg-white/80 backdrop-blur-sm px-2.5 py-1 rounded-full">
-          {participants.length} AMI{participants.length !== 1 ? 'S' : ''}
+          {displayParticipants.length} AMI{displayParticipants.length !== 1 ? 'S' : ''}
         </span>
       </div>
 
@@ -151,7 +232,7 @@ export default function ResultPage() {
               </div>
             </div>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Le point le plus équitable pour {participants.length} ami{participants.length !== 1 ? 's' : ''} en Métro.
+              Le point le plus équitable pour {displayParticipants.length} ami{displayParticipants.length !== 1 ? 's' : ''} en Métro.
             </p>
           </div>
 
@@ -175,7 +256,7 @@ export default function ResultPage() {
 
           {/* Liste participants */}
           <div className="px-5 max-h-[26vh] overflow-y-auto space-y-2.5 pb-3">
-            {participants.map(p => {
+            {displayParticipants.map(p => {
               const time = optimal.times.get(p.station) ?? 0;
               const pct = metrics.progressBars.get(p.station) ?? 0;
               return (

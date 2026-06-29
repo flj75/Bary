@@ -149,11 +149,21 @@ Ce délai est intentionnel et documenté — il ne masque pas une lenteur mais c
 
 ### Format de l'URL partageable
 ```
-bary.app/result?s=[station-id]&g=[prenom:station-id,prenom:station-id,...]
+bary.app/result?s=[station-id]&g=[prenom|station-id,prenom|station-id,...]
 ```
-Exemple : `bary.app/result?s=bastille&g=Hugo:chatelet,Sofia:pigalle,Karim:denfert,François:nation`
+Exemple : `bary.app/result?s=IDFM%3A463079&g=Hugo|IDFM%3A462972,Sofia|IDFM%3A463029`
 
-Un destinataire qui ouvre ce lien voit directement l'Écran 4 avec le résultat pré-calculé.
+Le séparateur `|` (et non `:`) est utilisé entre prénom et stationId pour éviter toute ambiguïté avec les stationIds IDFM de la forme `IDFM:xxx` (BUG-01 corrigé).
+
+Les caractères `, | & = + # ?` sont interdits à la saisie dans le champ Prénom (BUG-03 corrigé).
+
+### Vue destinataire (US-18)
+
+Quand un destinataire ouvre le lien sans session active, la page `/result` :
+1. Affiche un spinner immédiatement — pas de flash blanc
+2. Reconstruit le résultat côté client : fetch du dataset, parsing des params, re-calcul minimax
+3. Affiche l'Écran 4 normalement avec le résultat recalculé
+4. Si le lien est malformé ou une station est introuvable → écran *"Lien invalide"* (2 s), puis redirection vers l'Écran 1 avec toast *"Lien invalide"*
 
 ### Comportement du lien si le carnet d'amis a changé
 Le lien encode un **instantané figé** au moment du partage : station résultat, prénoms des participants et stations de départ. Il est **totalement indépendant du carnet d'amis** du créateur.

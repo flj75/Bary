@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MapPin } from 'lucide-react';
 import { MapView } from '@/components/map/MapView';
@@ -13,6 +14,16 @@ const DEMO_DOTS = [
 ];
 
 export default function HomePage() {
+  const [invalidLink, setInvalidLink] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === 'invalid_link') {
+      setInvalidLink(true);
+      setTimeout(() => setInvalidLink(false), 3000);
+    }
+  }, []);
+
   return (
     <div className="relative h-screen overflow-hidden">
 
@@ -60,6 +71,13 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Toast "Lien invalide" — US-18 Scénario 2 */}
+      {invalidLink && (
+        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-40 bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg pointer-events-none whitespace-nowrap">
+          Lien invalide
+        </div>
+      )}
 
     </div>
   );
