@@ -19,7 +19,7 @@ type ModalProps = {
   onAdd: (name: string, station: Station, save: boolean) => void;
 };
 
-const FORBIDDEN_NAME_CHARS = /[,|&=+#?]/;
+const FORBIDDEN_NAME_CHARS = /[,|&=+#?%]/;
 
 function NewPersonModal({ onClose, onAdd }: ModalProps) {
   const [name, setName] = useState('');

@@ -30,8 +30,8 @@ Un nom contenant `,` ne doit pas pouvoir être saisi — les caractères problé
 **Validation à la saisie dans la modale "+ Nouvelle personne"** — whitelist de caractères autorisés dans le champ Prénom.
 
 - **Autorisé** : lettres (y compris accents et caractères internationaux), espaces, tirets (`-`), apostrophes (`'`)
-- **Refusé** : `, | & = + # ?` et tout autre caractère spécial problématique pour l'encodage URL
-- **Regex** : `/[,|&=+#?]/` — si cette regex matche, le prénom est invalide
+- **Refusé** : `, | & = + # ? %` et tout autre caractère spécial problématique pour l'encodage URL
+- **Regex** : `/[,|&=+#?%]/` — si cette regex matche, le prénom est invalide (BUG-04 a étendu la liste initiale avec `%`)
 - **Message d'erreur inline** sous le champ : *"Les caractères spéciaux (, | & = + # ?) ne sont pas autorisés"*
 - **Bouton "Ajouter"** reste désactivé tant que le prénom contient un caractère interdit
 
