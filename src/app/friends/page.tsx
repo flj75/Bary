@@ -138,10 +138,6 @@ type ModalState =
   | { type: 'delete'; friend: Friend }
   | null;
 
-function sortFriends(friends: Friend[]): Friend[] {
-  return [...friends].sort((a, b) => (b.isMe ? 1 : 0) - (a.isMe ? 1 : 0));
-}
-
 export default function FriendsPage() {
   const router = useRouter();
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -150,11 +146,11 @@ export default function FriendsPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    setFriends(sortFriends(FriendStore.getAll()));
+    setFriends(FriendStore.getAll());
   }, []);
 
   function refresh() {
-    setFriends(sortFriends(FriendStore.getAll()));
+    setFriends(FriendStore.getAll());
   }
 
   function showStorageFullToast() {
@@ -196,12 +192,28 @@ export default function FriendsPage() {
     }
   }
 
-  const filtered = friends.filter(f =>
-    normalize(f.name).includes(normalize(search))
+  // ── Dérivations ───────────────────────────────────────────────────────
+
+  const meEntry = friends.find(f => f.isMe);
+  const regularFriends = friends.filter(f => !f.isMe);
+
+  const sortedFriends = [...regularFriends].sort((a, b) =>
+    normalize(a.name).localeCompare(normalize(b.name))
   );
 
-  const isEmpty = friends.length === 0;
-  const noResults = !isEmpty && filtered.length === 0 && search.length > 0;
+  const isSearching = search.length > 0;
+  const filteredFriends = isSearching
+    ? regularFriends.filter(f => normalize(f.name).includes(normalize(search)))
+    : sortedFriends;
+
+  const isEmpty = !meEntry && regularFriends.length === 0;
+  const noResults = isSearching && filteredFriends.length === 0;
+
+  // Liste affichée : "Moi" en tête (si pas de recherche active), puis amis filtrés/triés
+  const displayList: Friend[] = [
+    ...(meEntry && !isSearching ? [meEntry] : []),
+    ...filteredFriends,
+  ];
 
   return (
     <>
@@ -231,7 +243,7 @@ export default function FriendsPage() {
           </div>
         )}
 
-        {/* État vide */}
+        {/* État vide global */}
         {isEmpty && (
           <div className="flex flex-col items-center justify-center px-8 pt-20 text-center">
             <p className="text-zinc-400 text-sm mb-1">Aucun ami enregistré.</p>
@@ -248,7 +260,7 @@ export default function FriendsPage() {
           </div>
         )}
 
-        {/* Aucun résultat de recherche (US-15 scénario 2) */}
+        {/* Aucun résultat de recherche */}
         {noResults && (
           <div className="flex flex-col items-center px-8 pt-10 text-center">
             <p className="text-zinc-400 text-sm mb-4">
@@ -266,7 +278,7 @@ export default function FriendsPage() {
         {/* Liste des amis */}
         {!isEmpty && !noResults && (
           <ul className="px-4 pt-2">
-            {filtered.map(f => (
+            {displayList.map(f => (
               <li key={f.id}>
                 <button
                   onClick={() => setModal({ type: 'edit', friend: f })}
@@ -286,6 +298,13 @@ export default function FriendsPage() {
                   </div>
                   <Pencil size={14} className="text-zinc-300 flex-shrink-0" />
                 </button>
+                {f.isMe && !isSearching && regularFriends.length > 0 && (
+                  <div className="bg-stone-50 px-4 py-2.5 mt-2 -mx-4">
+                    <p className="text-xs font-semibold tracking-[0.12em] text-stone-400 uppercase">
+                      Contacts
+                    </p>
+                  </div>
+                )}
                 {!f.isMe && (
                   <div className="flex justify-end pr-2 -mt-1 pb-1">
                     <button
@@ -303,7 +322,7 @@ export default function FriendsPage() {
         )}
       </div>
 
-      {/* Bouton flottant "Ajouter un ami" (visible uniquement si des amis existent) */}
+      {/* Bouton flottant "Ajouter un ami" */}
       {!isEmpty && (
         <div className="fixed bottom-8 left-0 right-0 flex justify-center z-20 px-4">
           <button
@@ -344,7 +363,7 @@ export default function FriendsPage() {
 
       {/* Toast stockage plein (BUG-02) */}
       {toastMsg && (
-        <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40 bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg pointer-events-none whitespace-nowrap">
+        <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40 bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg pointer-events-none whitespace-nowrap">
           {toastMsg}
         </div>
       )}
