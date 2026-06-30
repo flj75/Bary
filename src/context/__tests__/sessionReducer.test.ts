@@ -696,3 +696,196 @@ describe('US-20 — ADD_PARTICIPANT avec isMe: true (pré-ajout "Moi")', () => {
     expect(next.participants[0].isMe).toBe(true);
   });
 });
+
+// ── UPDATE_PARTICIPANT_STATION (US-21) ────────────────────────────────────────
+
+describe('UPDATE_PARTICIPANT_STATION (US-21)', () => {
+  const REPUBLIQUE: Station = {
+    id: 'IDFM:73689',
+    name: 'Republique',
+    lat: 48.867557,
+    lng: 2.363774,
+    lines: [
+      { id: 'IDFM:C01373', name: '3', mode: 'metro', color: '#6e6e00' },
+      { id: 'IDFM:C01375', name: '5', mode: 'metro', color: '#ff7e2e' },
+    ],
+  };
+
+  // --- Scenario 2 (US-21) : mise a jour de la bonne station ---
+
+  it('met a jour la station du participant cible (US-21 scenario 2)', () => {
+    // Given : Alice a Chatelet, Bob a Nation
+    const state = stateWith(ALICE, BOB);
+    // When : on met a jour la station d'Alice vers Republique
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    // Then : Alice est maintenant a Republique
+    const alice = next.participants.find(p => p.id === 'p1');
+    expect(alice?.station.id).toBe(REPUBLIQUE.id);
+    expect(alice?.station.name).toBe('Republique');
+  });
+
+  it('la station mise a jour est bien la nouvelle valeur, pas l\'ancienne', () => {
+    const state = stateWith(ALICE);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    const alice = next.participants.find(p => p.id === 'p1');
+    expect(alice?.station.id).not.toBe(CHATELET.id);
+    expect(alice?.station.id).toBe(REPUBLIQUE.id);
+  });
+
+  it('ne touche pas les autres participants (Bob reste a Nation)', () => {
+    const state = stateWith(ALICE, BOB, CARL);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    const bob = next.participants.find(p => p.id === 'p2');
+    const carl = next.participants.find(p => p.id === 'p3');
+    expect(bob).toEqual(BOB);
+    expect(carl).toEqual(CARL);
+  });
+
+  it('preserve isMe du participant mis a jour', () => {
+    const ME: Participant = { id: 'me-1', name: 'Alice', station: CHATELET, isMe: true };
+    const state = stateWith(ME, BOB);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'me-1', station: REPUBLIQUE },
+    });
+    const me = next.participants.find(p => p.id === 'me-1');
+    expect(me?.isMe).toBe(true);
+    expect(me?.station.id).toBe(REPUBLIQUE.id);
+  });
+
+  it('preserve name du participant mis a jour', () => {
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    const alice = next.participants.find(p => p.id === 'p1');
+    expect(alice?.name).toBe('Alice');
+  });
+
+  it('preserve result du state apres mise a jour', () => {
+    const state: SessionState = { ...stateWith(ALICE, BOB), result: FAKE_RESULT };
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    expect(next.result).toBe(FAKE_RESULT);
+  });
+
+  it('preserve transportMode du state apres mise a jour', () => {
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    expect(next.transportMode).toBe('metro');
+  });
+
+  // --- Scenario 3 (US-21) : annulation — station inchangee si id inconnu ---
+
+  it('id inconnu -> state inchange (liste identique)', () => {
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'inexistant', station: REPUBLIQUE },
+    });
+    expect(next.participants).toHaveLength(2);
+    expect(next.participants.find(p => p.id === 'p1')).toEqual(ALICE);
+    expect(next.participants.find(p => p.id === 'p2')).toEqual(BOB);
+  });
+
+  it('liste vide -> state inchange (participants reste vide)', () => {
+    const next = sessionReducer(emptyState, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    expect(next.participants).toHaveLength(0);
+  });
+
+  // --- Immutabilite ---
+
+  it('retourne un nouvel objet state (immutabilite)', () => {
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    expect(next).not.toBe(state);
+    expect(next.participants).not.toBe(state.participants);
+  });
+
+  it('le participant mis a jour est un nouvel objet (spread, pas mutation)', () => {
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    const originalAlice = state.participants.find(p => p.id === 'p1');
+    const updatedAlice = next.participants.find(p => p.id === 'p1');
+    expect(updatedAlice).not.toBe(originalAlice);
+  });
+
+  it('les participants non cibles sont les memes references (pas de clone inutile)', () => {
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    const originalBob = state.participants.find(p => p.id === 'p2');
+    const nextBob = next.participants.find(p => p.id === 'p2');
+    // map() avec ternaire : les non-cibles passent par le else => meme reference
+    expect(nextBob).toBe(originalBob);
+  });
+
+  // --- Edge case : mise a jour vers la meme station ---
+
+  it('mise a jour vers la meme station : station reste identique', () => {
+    const state = stateWith(ALICE);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: CHATELET },
+    });
+    const alice = next.participants.find(p => p.id === 'p1');
+    expect(alice?.station.id).toBe(CHATELET.id);
+  });
+
+  // --- Sequence : edition puis annulation ---
+
+  it('US-21 scenario 3 : edition puis nouvelle edition conserve la derniere station', () => {
+    // Simule : l'utilisateur ouvre l'edition d'Alice, selectionne Republique,
+    // puis reediite et selectionne Nation
+    let state = stateWith(ALICE, BOB);
+    state = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: REPUBLIQUE },
+    });
+    state = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p1', station: NATION },
+    });
+    const alice = state.participants.find(p => p.id === 'p1');
+    expect(alice?.station.id).toBe(NATION.id);
+  });
+
+  it('US-21 edge case "deux participants meme station" : les deux peuvent pointer la meme station', () => {
+    // D'apres la US : comportement identique au cas normal
+    const state = stateWith(ALICE, BOB);
+    const next = sessionReducer(state, {
+      type: 'UPDATE_PARTICIPANT_STATION',
+      payload: { id: 'p2', station: CHATELET }, // Bob passe aussi a Chatelet
+    });
+    const alice = next.participants.find(p => p.id === 'p1');
+    const bob = next.participants.find(p => p.id === 'p2');
+    expect(alice?.station.id).toBe(CHATELET.id);
+    expect(bob?.station.id).toBe(CHATELET.id);
+  });
+});

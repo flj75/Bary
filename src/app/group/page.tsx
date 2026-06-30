@@ -94,6 +94,9 @@ export default function GroupPage() {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [tooltip, setTooltip] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editStation, setEditStation] = useState<Station | null>(null);
+  const editContainerRef = useRef<HTMLDivElement>(null);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapRef = useRef<MapRef>(null);
 
@@ -170,6 +173,40 @@ export default function GroupPage() {
     dispatch({ type: 'REMOVE_PARTICIPANT', payload: { id } });
   }
 
+  function startEdit(p: Participant) {
+    setEditingId(p.id);
+    setEditStation(p.station);
+  }
+
+  function commitEdit(station: Station) {
+    if (!editingId) return;
+    dispatch({ type: 'UPDATE_PARTICIPANT_STATION', payload: { id: editingId, station } });
+    setEditingId(null);
+    setEditStation(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditStation(null);
+  }
+
+  // Fermeture édition inline — Escape + tap en dehors — US-21 Scénario 3
+  useEffect(() => {
+    if (!editingId) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelEdit(); };
+    const onMouse = (e: MouseEvent) => {
+      if (editContainerRef.current && !editContainerRef.current.contains(e.target as Node)) {
+        cancelEdit();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onMouse);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onMouse);
+    };
+  }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <>
       <div className="relative h-screen overflow-hidden">
@@ -242,11 +279,14 @@ export default function GroupPage() {
                   Dans le groupe · {participants.length}
                 </p>
                 {participants.map((p: Participant) => (
-                  <div key={p.id} className="flex items-center gap-3 py-2 px-2 rounded-xl hover:bg-stone-50 transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-brand-orange flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                  <div key={p.id} className="flex items-start gap-3 py-2 px-2 rounded-xl hover:bg-stone-50 transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-brand-orange flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 mt-0.5">
                       {p.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div
+                      ref={editingId === p.id ? editContainerRef : undefined}
+                      className="flex-1 min-w-0"
+                    >
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-zinc-900 truncate">{p.name}</p>
                         {p.isMe && (
@@ -255,14 +295,37 @@ export default function GroupPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-400 truncate">{p.station.name}</p>
+                      {editingId === p.id ? (
+                        <div className="mt-1.5 space-y-1.5">
+                          <StationAutocomplete
+                            value={editStation}
+                            onChange={station => commitEdit(station)}
+                            placeholder="Nouvelle station..."
+                          />
+                          <button
+                            onClick={cancelEdit}
+                            className="text-[11px] text-zinc-400 hover:text-zinc-600 transition-colors"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => startEdit(p)}
+                          className="text-xs text-zinc-400 truncate hover:text-brand-orange transition-colors text-left w-full mt-0.5"
+                        >
+                          {p.station.name}
+                        </button>
+                      )}
                     </div>
-                    <button
-                      onClick={() => handleRemove(p.id)}
-                      className="w-6 h-6 flex items-center justify-center rounded-full bg-stone-100 hover:bg-brand-orange hover:text-white text-stone-500 transition-colors flex-shrink-0"
-                    >
-                      <X size={13} />
-                    </button>
+                    {editingId !== p.id && (
+                      <button
+                        onClick={() => handleRemove(p.id)}
+                        className="w-6 h-6 flex items-center justify-center rounded-full bg-stone-100 hover:bg-brand-orange hover:text-white text-stone-500 transition-colors flex-shrink-0 mt-0.5"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
