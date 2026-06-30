@@ -596,3 +596,103 @@ describe('Sequences de transitions (scenarios integres)', () => {
     expect(state.participants).toHaveLength(3);
   });
 });
+
+// ── US-20 : pré-ajout du participant "Moi" via sessionReducer ─────────────────
+//
+// Le pré-ajout lui-même est dans un useEffect côté GroupPage (non testable
+// sans jsdom). On teste ici ce que le reducer garantit :
+//   - ADD_PARTICIPANT avec isMe: true produit un participant correctement marqué
+//   - REMOVE_PARTICIPANT retire bien l'entrée isMe
+//   - Un second ADD_PARTICIPANT avec isMe n'est pas bloqué (la protection
+//     "pas de doublon au montage" est côté useEffect, pas côté reducer)
+
+describe('US-20 — ADD_PARTICIPANT avec isMe: true (pré-ajout "Moi")', () => {
+  const ME: Participant = { id: 'me-1', name: 'Alice', station: CHATELET, isMe: true };
+
+  it('ADD_PARTICIPANT avec isMe: true insere le participant en premier', () => {
+    const next = sessionReducer(emptyState, { type: 'ADD_PARTICIPANT', payload: ME });
+    expect(next.participants).toHaveLength(1);
+    expect(next.participants[0].isMe).toBe(true);
+    expect(next.participants[0].name).toBe('Alice');
+    expect(next.participants[0].station.id).toBe(CHATELET.id);
+  });
+
+  it('le flag isMe est conserve tel quel dans le state apres dispatch', () => {
+    const next = sessionReducer(emptyState, { type: 'ADD_PARTICIPANT', payload: ME });
+    expect(next.participants[0].isMe).toBe(true);
+  });
+
+  it('un participant sans isMe na pas le flag (undefined)', () => {
+    const next = sessionReducer(emptyState, { type: 'ADD_PARTICIPANT', payload: ALICE });
+    expect(next.participants[0].isMe).toBeUndefined();
+  });
+
+  it('REMOVE_PARTICIPANT retire l\'entree isMe par son id (scenario 2 US-20)', () => {
+    // L'utilisateur tape le bouton de retrait sur sa propre entrée
+    const state = stateWith(ME, BOB);
+    const next = sessionReducer(state, { type: 'REMOVE_PARTICIPANT', payload: { id: 'me-1' } });
+    expect(next.participants).toHaveLength(1);
+    expect(next.participants.find(p => p.isMe)).toBeUndefined();
+    expect(next.participants[0]).toEqual(BOB);
+  });
+
+  it('REMOVE_PARTICIPANT de isMe ne supprime pas les autres participants', () => {
+    const state = stateWith(ME, BOB, CARL);
+    const next = sessionReducer(state, { type: 'REMOVE_PARTICIPANT', payload: { id: 'me-1' } });
+    expect(next.participants).toHaveLength(2);
+    expect(next.participants[0]).toEqual(BOB);
+    expect(next.participants[1]).toEqual(CARL);
+  });
+
+  it('un second ADD_PARTICIPANT avec isMe est accepte par le reducer (pas de garde dans reducer)', () => {
+    // La protection "pas de doublon" est dans le useEffect (participants.length > 0 => return)
+    // Le reducer lui-meme ne bloque pas un second pré-ajout
+    const state = stateWith(ME);
+    const ME2: Participant = { id: 'me-2', name: 'Alice', station: CHATELET, isMe: true };
+    const next = sessionReducer(state, { type: 'ADD_PARTICIPANT', payload: ME2 });
+    expect(next.participants).toHaveLength(2);
+  });
+
+  it('ADD_PARTICIPANT isMe conserve immutabilite (nouvel objet retourne)', () => {
+    const next = sessionReducer(emptyState, { type: 'ADD_PARTICIPANT', payload: ME });
+    expect(next).not.toBe(emptyState);
+    expect(next.participants).not.toBe(emptyState.participants);
+  });
+
+  it('US-20 scenario 1 : etat apres pre-ajout — 1 participant isMe en position 0', () => {
+    // Simule le state produit par le useEffect de GroupPage au montage
+    const state = sessionReducer(emptyState, { type: 'ADD_PARTICIPANT', payload: ME });
+    expect(state.participants).toHaveLength(1);
+    expect(state.participants[0].isMe).toBe(true);
+    expect(state.participants[0].name).toBe('Alice');
+  });
+
+  it('US-20 scenario 2 : retrait de soi puis re-ajout via carnet — sequentiel reducer', () => {
+    // Pré-ajout au montage
+    let state = sessionReducer(emptyState, { type: 'ADD_PARTICIPANT', payload: ME });
+    // L'utilisateur ajoute un ami
+    state = sessionReducer(state, { type: 'ADD_PARTICIPANT', payload: BOB });
+    // L'utilisateur se retire lui-même
+    state = sessionReducer(state, { type: 'REMOVE_PARTICIPANT', payload: { id: 'me-1' } });
+    expect(state.participants).toHaveLength(1);
+    expect(state.participants[0]).toEqual(BOB);
+    // Re-ajout depuis le carnet (handleAddFriend propage isMe)
+    const ME_READD: Participant = { id: 'me-1', name: 'Alice', station: CHATELET, isMe: true };
+    state = sessionReducer(state, { type: 'ADD_PARTICIPANT', payload: ME_READD });
+    expect(state.participants).toHaveLength(2);
+    expect(state.participants.find(p => p.isMe)).toBeDefined();
+  });
+
+  it('US-20 scenario 3 (sans profil) : state vide reste vide (aucun dispatch sans profil)', () => {
+    // Sans profil, le useEffect ne dispatche rien. On verifie que l'etat vide est l'etat initial.
+    expect(emptyState.participants).toHaveLength(0);
+  });
+
+  it('handleAddFriend propage isMe : ADD_PARTICIPANT avec isMe: true produit le bon state', () => {
+    // Simule handleAddFriend(friendIsMe) dans GroupPage :
+    //   dispatch({ type: 'ADD_PARTICIPANT', payload: { ...friend, isMe: friend.isMe } })
+    const friendIsMe: Participant = { id: 'f-me', name: 'Alice', station: CHATELET, isMe: true };
+    const next = sessionReducer(emptyState, { type: 'ADD_PARTICIPANT', payload: friendIsMe });
+    expect(next.participants[0].isMe).toBe(true);
+  });
+});

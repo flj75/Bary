@@ -241,3 +241,43 @@ describe('ProfileStore.set — erreur storage_full (US-19 edge case localStorage
     expect(() => ProfileStore.set({ name: 'Alice', station: CHATELET })).toThrow('storage_full');
   });
 });
+
+// ── ProfileStore.get — profil incomplet (US-20 edge case) ────────────────────
+
+describe('ProfileStore.get — profil incomplet retourne null (US-20)', () => {
+  it('retourne null si le profil stocké ne contient pas de name (station seule)', () => {
+    // Simule un objet partiellement écrit : station présente mais name absent
+    localStorageStub.setItem('bary_profile', JSON.stringify({ station: CHATELET }));
+    expect(ProfileStore.get()).toBeNull();
+  });
+
+  it('retourne null si le profil stocké ne contient pas de station (name seul)', () => {
+    // Simule un objet partiellement écrit : name présent mais station absente
+    localStorageStub.setItem('bary_profile', JSON.stringify({ name: 'Alice' }));
+    expect(ProfileStore.get()).toBeNull();
+  });
+
+  it('retourne null si le profil stocké est un objet vide {}', () => {
+    localStorageStub.setItem('bary_profile', JSON.stringify({}));
+    expect(ProfileStore.get()).toBeNull();
+  });
+
+  it('retourne null si name est une chaîne vide (falsy)', () => {
+    localStorageStub.setItem('bary_profile', JSON.stringify({ name: '', station: CHATELET }));
+    expect(ProfileStore.get()).toBeNull();
+  });
+
+  it('retourne null si station est null', () => {
+    localStorageStub.setItem('bary_profile', JSON.stringify({ name: 'Alice', station: null }));
+    expect(ProfileStore.get()).toBeNull();
+  });
+
+  it('retourne le profil complet si name et station sont tous deux présents', () => {
+    // Contrôle positif : un profil complet ne doit pas être rejeté
+    localStorageStub.setItem('bary_profile', JSON.stringify({ name: 'Alice', station: CHATELET }));
+    const profile = ProfileStore.get();
+    expect(profile).not.toBeNull();
+    expect(profile?.name).toBe('Alice');
+    expect(profile?.station.id).toBe(CHATELET.id);
+  });
+});

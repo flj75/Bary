@@ -5,6 +5,7 @@ export type Participant = {
   id: string;
   name: string;
   station: Station;
+  isMe?: boolean;
 };
 
 export type SessionState = {

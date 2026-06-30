@@ -9,6 +9,7 @@ import { MapView } from '@/components/map/MapView';
 import { StationAutocomplete } from '@/components/station/StationAutocomplete';
 import { useSession } from '@/context/SessionContext';
 import { FriendStore, type Friend } from '@/lib/friends/store';
+import { ProfileStore } from '@/lib/profile/store';
 import type { Participant } from '@/types/session';
 import type { Station } from '@/types/station';
 import { FORBIDDEN_NAME_CHARS } from '@/lib/validation';
@@ -43,7 +44,7 @@ function NewPersonModal({ onClose, onAdd }: ModalProps) {
             />
             {nameHasError && (
               <p className="text-xs text-rose-500 mt-1.5 leading-snug">
-                Les caractères spéciaux (, | & = + # ?) ne sont pas autorisés
+                Les caractères spéciaux (, | & = + # ? %) ne sont pas autorisés
               </p>
             )}
           </div>
@@ -117,6 +118,20 @@ export default function GroupPage() {
     return () => { if (tooltipTimer.current) clearTimeout(tooltipTimer.current); };
   }, []);
 
+  // Pré-ajout "Moi" — US-20 : une seule fois au montage (ref = protection StrictMode double-run)
+  const profileInitialized = useRef(false);
+  useEffect(() => {
+    if (profileInitialized.current) return;
+    profileInitialized.current = true;
+    if (participants.length > 0) return;
+    const profile = ProfileStore.get();
+    if (!profile) return;
+    dispatch({
+      type: 'ADD_PARTICIPANT',
+      payload: { id: crypto.randomUUID(), name: profile.name, station: profile.station, isMe: true },
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [friends, setFriends] = useState<Friend[]>([]);
   useEffect(() => { setFriends(FriendStore.getAll()); }, []);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -148,7 +163,7 @@ export default function GroupPage() {
   }
 
   function handleAddFriend(f: Friend) {
-    dispatch({ type: 'ADD_PARTICIPANT', payload: { id: crypto.randomUUID(), name: f.name, station: f.station } });
+    dispatch({ type: 'ADD_PARTICIPANT', payload: { id: crypto.randomUUID(), name: f.name, station: f.station, isMe: f.isMe } });
   }
 
   function handleRemove(id: string) {
@@ -232,7 +247,14 @@ export default function GroupPage() {
                       {p.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-zinc-900 truncate">{p.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-zinc-900 truncate">{p.name}</p>
+                        {p.isMe && (
+                          <span className="flex-shrink-0 text-[10px] font-semibold tracking-wide text-brand-orange border border-brand-orange/40 bg-brand-orange/5 rounded-full px-2 py-0.5">
+                            Moi
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-zinc-400 truncate">{p.station.name}</p>
                     </div>
                     <button
@@ -288,7 +310,14 @@ export default function GroupPage() {
                           {f.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-zinc-900 truncate">{f.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-zinc-900 truncate">{f.name}</p>
+                            {f.isMe && (
+                              <span className="flex-shrink-0 text-[10px] font-semibold tracking-wide text-brand-orange border border-brand-orange/40 bg-brand-orange/5 rounded-full px-2 py-0.5">
+                                Moi
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-zinc-400 truncate">{f.station.name}</p>
                         </div>
                         <button

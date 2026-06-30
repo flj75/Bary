@@ -13,7 +13,11 @@ export const ProfileStore = {
     try {
       if (typeof window === 'undefined') return null;
       const raw = localStorage.getItem(KEY);
-      return raw ? (JSON.parse(raw) as UserProfile) : null;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<UserProfile>;
+      // Profil incomplet (prénom ou station absents) → traité comme inexistant (US-20)
+      if (!parsed.name || !parsed.station) return null;
+      return parsed as UserProfile;
     } catch { return null; }
   },
 

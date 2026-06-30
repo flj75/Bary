@@ -439,3 +439,64 @@ describe('sortFriends — épinglage isMe en tête (US-19 scénario 3)', () => {
     expect(sorted[0].isMe).toBeUndefined();
   });
 });
+
+// ── US-20 : round-trip FriendStore.upsertMe → getAll → isMe propagé ──────────
+//
+// Vérifie que le flag isMe survit à la sérialisation JSON en localStorage.
+// Ce round-trip est le socle du ré-ajout "Moi" depuis le carnet après retrait.
+
+describe('US-20 — round-trip upsertMe → getAll : isMe persiste en localStorage', () => {
+  it('isMe est true apres serialisation/deserialisation JSON (round-trip complet)', () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    // Simule une relecture depuis localStorage (nouveau appel getAll)
+    const all = FriendStore.getAll();
+    const me = all.find(f => f.isMe);
+    expect(me).toBeDefined();
+    expect(me?.isMe).toBe(true);
+  });
+
+  it('la station complete (lat, lng, lines) est preservee apres round-trip', () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    const me = FriendStore.getAll().find(f => f.isMe);
+    expect(me?.station.lat).toBe(CHATELET.lat);
+    expect(me?.station.lng).toBe(CHATELET.lng);
+    expect(me?.station.lines).toHaveLength(1);
+    expect(me?.station.lines[0].color).toBe('#ffbe00');
+  });
+
+  it('le nom est preserve apres round-trip', () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    const me = FriendStore.getAll().find(f => f.isMe);
+    expect(me?.name).toBe('Alice');
+  });
+
+  it('isMe est toujours true apres un double upsert (mise a jour du profil)', () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    FriendStore.upsertMe('Alicia', NATION);
+    const me = FriendStore.getAll().find(f => f.isMe);
+    expect(me?.isMe).toBe(true);
+    expect(me?.name).toBe('Alicia');
+    expect(me?.station.id).toBe(NATION.id);
+  });
+
+  it('un ami ordinaire najoute par upsertMe na pas isMe dans le round-trip', () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    FriendStore.add('Bob', NATION);
+    const bob = FriendStore.getAll().find(f => f.name === 'Bob');
+    expect(bob?.isMe).toBeUndefined();
+  });
+
+  it('round-trip : isMe peut servir de source pour un ADD_PARTICIPANT isMe (scenario re-ajout)', () => {
+    // Simule : FriendStore.getAll() -> handleAddFriend(fiche isMe) -> dispatch ADD_PARTICIPANT
+    FriendStore.upsertMe('Alice', CHATELET);
+    const friends = FriendStore.getAll();
+    const me = friends.find(f => f.isMe);
+    expect(me).toBeDefined();
+    // La fiche isMe peut être passée en payload à handleAddFriend
+    // handleAddFriend propage isMe : { id: uuid, name: f.name, station: f.station, isMe: f.isMe }
+    const payload = { id: crypto.randomUUID(), name: me!.name, station: me!.station, isMe: me!.isMe };
+    expect(payload.isMe).toBe(true);
+    expect(payload.name).toBe('Alice');
+    expect(payload.station.id).toBe(CHATELET.id);
+  });
+});
