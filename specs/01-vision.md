@@ -37,7 +37,8 @@ Jeunes actifs urbains (20-35 ans), habitués des apps mobiles, utilisateurs rég
 
 | Version | Fonctionnalité |
 |---|---|
-| v2 | Mode hybride : chaque participant choisit son propre moyen de transport |
-| v3 | Suggestions de lieux à proximité de la station résultat |
-| v4 | Autres villes / réseaux de transport |
-| v5 | Gestion d'amis avec comptes, dimension réseau social |
+| v2 | Comptes utilisateurs : vrai login (email/Google/Apple), profil persistant cross-device, station par défaut synchronisée |
+| v3 | Réseau social léger : badge "utilisateur Bary" sur les amis du carnet qui ont un compte, récupération automatique de leur station officielle (comme WhatsApp identifie les contacts avec l'app) |
+| v4 | Mode hybride : chaque participant choisit son propre moyen de transport |
+| v5 | Suggestions de lieux à proximité de la station résultat |
+| v6 | Autres villes / réseaux de transport |
