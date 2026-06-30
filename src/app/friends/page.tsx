@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, X, Pencil } from 'lucide-react';
 import { FriendStore, type Friend } from '@/lib/friends/store';
+import { ProfileStore } from '@/lib/profile/store';
 import { StationAutocomplete } from '@/components/station/StationAutocomplete';
 import type { Station } from '@/types/station';
+import { FORBIDDEN_NAME_CHARS } from '@/lib/validation';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -45,24 +47,36 @@ type FormModalProps = {
 function FriendFormModal({ initialName = '', initialStation = null, title, onClose, onSave }: FormModalProps) {
   const [name, setName] = useState(initialName);
   const [station, setStation] = useState<Station | null>(initialStation);
-  const canSubmit = name.trim().length > 0 && station !== null;
+  const nameHasError = name.trim().length > 0 && FORBIDDEN_NAME_CHARS.test(name);
+  const canSubmit = name.trim().length > 0 && !nameHasError && station !== null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm px-6 pt-6 pb-8 shadow-xl">
         <h3 className="text-lg font-bold text-zinc-900 mb-5">{title}</h3>
-        <div className="space-y-3 mb-6">
-          <input
-            autoFocus
-            className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 placeholder:text-zinc-400"
-            placeholder="Prénom"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
+        <div className="space-y-3 mb-4">
+          <div>
+            <input
+              autoFocus
+              className={`w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 placeholder:text-zinc-400 ${
+                nameHasError
+                  ? 'border-rose-300 focus:ring-rose-200'
+                  : 'border-stone-200 focus:ring-brand-orange/30'
+              }`}
+              placeholder="Prénom"
+              value={name}
+              onChange={e => setName(e.target.value)}
+            />
+            {nameHasError && (
+              <p className="text-xs text-rose-500 mt-1.5 leading-snug">
+                Les caractères spéciaux (, | & = + # ? %) ne sont pas autorisés
+              </p>
+            )}
+          </div>
           <StationAutocomplete value={station} onChange={setStation} />
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
             className="flex-1 rounded-xl border border-stone-200 py-3.5 text-sm font-medium text-stone-500 hover:bg-stone-50 transition-colors"
@@ -124,6 +138,10 @@ type ModalState =
   | { type: 'delete'; friend: Friend }
   | null;
 
+function sortFriends(friends: Friend[]): Friend[] {
+  return [...friends].sort((a, b) => (b.isMe ? 1 : 0) - (a.isMe ? 1 : 0));
+}
+
 export default function FriendsPage() {
   const router = useRouter();
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -132,11 +150,11 @@ export default function FriendsPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    setFriends(FriendStore.getAll());
+    setFriends(sortFriends(FriendStore.getAll()));
   }, []);
 
   function refresh() {
-    setFriends(FriendStore.getAll());
+    setFriends(sortFriends(FriendStore.getAll()));
   }
 
   function showStorageFullToast() {
@@ -154,9 +172,13 @@ export default function FriendsPage() {
     }
   }
 
-  function handleEdit(id: string, name: string, station: Station) {
+  function handleEdit(friend: Friend, name: string, station: Station) {
     try {
-      FriendStore.update(id, { name, station });
+      if (friend.isMe) {
+        ProfileStore.set({ name, station });
+      } else {
+        FriendStore.update(friend.id, { name, station });
+      }
       refresh();
       setModal(null);
     } catch {
@@ -252,20 +274,29 @@ export default function FriendsPage() {
                 >
                   <Avatar name={f.name} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-zinc-900 truncate">{f.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-zinc-900 truncate">{f.name}</p>
+                      {f.isMe && (
+                        <span className="flex-shrink-0 text-[10px] font-semibold tracking-wide text-brand-orange border border-brand-orange/40 bg-brand-orange/5 rounded-full px-2 py-0.5">
+                          Moi
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-zinc-400 truncate">{f.station.name}</p>
                   </div>
                   <Pencil size={14} className="text-zinc-300 flex-shrink-0" />
                 </button>
-                <div className="flex justify-end pr-2 -mt-1 pb-1">
-                  <button
-                    onClick={e => { e.stopPropagation(); setModal({ type: 'delete', friend: f }); }}
-                    className="text-[11px] text-zinc-300 hover:text-rose-400 transition-colors flex items-center gap-1"
-                  >
-                    <X size={11} />
-                    Supprimer
-                  </button>
-                </div>
+                {!f.isMe && (
+                  <div className="flex justify-end pr-2 -mt-1 pb-1">
+                    <button
+                      onClick={e => { e.stopPropagation(); setModal({ type: 'delete', friend: f }); }}
+                      className="text-[11px] text-zinc-300 hover:text-rose-400 transition-colors flex items-center gap-1"
+                    >
+                      <X size={11} />
+                      Supprimer
+                    </button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -296,11 +327,11 @@ export default function FriendsPage() {
       )}
       {modal?.type === 'edit' && (
         <FriendFormModal
-          title="Modifier"
+          title={modal.friend.isMe ? 'Mon profil' : 'Modifier'}
           initialName={modal.friend.name}
           initialStation={modal.friend.station}
           onClose={() => setModal(null)}
-          onSave={(name, station) => handleEdit(modal.friend.id, name, station)}
+          onSave={(name, station) => handleEdit(modal.friend, name, station)}
         />
       )}
       {modal?.type === 'delete' && (

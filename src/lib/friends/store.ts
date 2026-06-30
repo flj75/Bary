@@ -4,6 +4,7 @@ export type Friend = {
   id: string;
   name: string;
   station: Station;
+  isMe?: boolean;
 };
 
 const KEY = 'bary_friends';
@@ -39,6 +40,16 @@ export const FriendStore = {
   },
 
   remove: (id: string): void => {
-    write(read().filter(f => f.id !== id));
+    // Garde-fou : l'entrée isMe n'est jamais supprimable
+    write(read().filter(f => f.id !== id || f.isMe === true));
+  },
+
+  upsertMe: (name: string, station: Station): void => {
+    const friends = read();
+    if (friends.some(f => f.isMe)) {
+      write(friends.map(f => f.isMe ? { ...f, name, station } : f));
+    } else {
+      write([{ id: crypto.randomUUID(), name, station, isMe: true }, ...friends]);
+    }
   },
 };

@@ -11,6 +11,7 @@ import { useSession } from '@/context/SessionContext';
 import { FriendStore, type Friend } from '@/lib/friends/store';
 import type { Participant } from '@/types/session';
 import type { Station } from '@/types/station';
+import { FORBIDDEN_NAME_CHARS } from '@/lib/validation';
 
 // ── Modal nouvelle personne ────────────────────────────────────────────
 
@@ -18,8 +19,6 @@ type ModalProps = {
   onClose: () => void;
   onAdd: (name: string, station: Station, save: boolean) => void;
 };
-
-const FORBIDDEN_NAME_CHARS = /[,|&=+#?%]/;
 
 function NewPersonModal({ onClose, onAdd }: ModalProps) {
   const [name, setName] = useState('');

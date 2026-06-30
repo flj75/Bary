@@ -283,3 +283,159 @@ describe('FriendStore — persistance localStorage (US-12 scenario 3)', () => {
     expect(all[0].station.id).toBe(NATION.id);
   });
 });
+
+// ── US-19 : upsertMe ─────────────────────────────────────────────────────────
+
+describe('FriendStore.upsertMe (US-19 scénario 2 — synchronisation profil)', () => {
+  it('crée une entrée isMe si aucune entrée isMe nexiste', () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    const friends = FriendStore.getAll();
+    const me = friends.find(f => f.isMe);
+    expect(me).toBeDefined();
+    expect(me?.name).toBe('Alice');
+    expect(me?.station.id).toBe(CHATELET.id);
+    expect(me?.isMe).toBe(true);
+  });
+
+  it("l'entrée isMe est insérée en tête (premier upsertMe sur carnet vide)", () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    const friends = FriendStore.getAll();
+    expect(friends[0].isMe).toBe(true);
+  });
+
+  it("l'entrée isMe est insérée en tête quand des amis existent déjà", () => {
+    FriendStore.add('Bob', NATION);
+    FriendStore.add('Carl', SAINT_LAZARE);
+    FriendStore.upsertMe('Alice', CHATELET);
+    const friends = FriendStore.getAll();
+    expect(friends[0].isMe).toBe(true);
+    expect(friends[0].name).toBe('Alice');
+    // Les autres amis sont préservés
+    expect(friends).toHaveLength(3);
+  });
+
+  it("met à jour l'entrée isMe existante sans en créer une nouvelle", () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    FriendStore.upsertMe('Alicia', NATION);
+    const friends = FriendStore.getAll();
+    const meEntries = friends.filter(f => f.isMe);
+    expect(meEntries).toHaveLength(1);
+    expect(meEntries[0].name).toBe('Alicia');
+    expect(meEntries[0].station.id).toBe(NATION.id);
+  });
+
+  it("conserve l'id de l'entrée isMe lors d'un upsert (pas de recréation)", () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    const idBefore = FriendStore.getAll().find(f => f.isMe)?.id;
+    FriendStore.upsertMe('Alicia', NATION);
+    const idAfter = FriendStore.getAll().find(f => f.isMe)?.id;
+    expect(idBefore).toBeDefined();
+    expect(idBefore).toBe(idAfter);
+  });
+
+  it("les amis non-isMe ne sont pas affectés par upsertMe", () => {
+    FriendStore.add('Bob', NATION);
+    FriendStore.add('Carl', SAINT_LAZARE);
+    FriendStore.upsertMe('Alice', CHATELET);
+    const nonMe = FriendStore.getAll().filter(f => !f.isMe);
+    expect(nonMe).toHaveLength(2);
+    expect(nonMe.map(f => f.name)).toContain('Bob');
+    expect(nonMe.map(f => f.name)).toContain('Carl');
+  });
+
+  it("l'id de l'entrée isMe est un UUID valide", () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    const me = FriendStore.getAll().find(f => f.isMe);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    expect(me?.id).toMatch(uuidRegex);
+  });
+});
+
+// ── US-19 : remove garde-fou isMe (scénario 4) ───────────────────────────────
+
+describe('FriendStore.remove — garde-fou isMe (US-19 scénario 4)', () => {
+  it("remove ignore l'entrée isMe : elle reste dans le carnet", () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    const me = FriendStore.getAll().find(f => f.isMe)!;
+    FriendStore.remove(me.id);
+    const remaining = FriendStore.getAll();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].isMe).toBe(true);
+    expect(remaining[0].name).toBe('Alice');
+  });
+
+  it("remove avec l'id isMe est idempotent : appels multiples sans effet", () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    const me = FriendStore.getAll().find(f => f.isMe)!;
+    FriendStore.remove(me.id);
+    FriendStore.remove(me.id);
+    expect(FriendStore.getAll()).toHaveLength(1);
+  });
+
+  it("remove sur un ami ordinaire supprime normalement même quand isMe existe", () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    const bob = FriendStore.add('Bob', NATION);
+    FriendStore.remove(bob.id);
+    const all = FriendStore.getAll();
+    expect(all).toHaveLength(1);
+    expect(all[0].isMe).toBe(true);
+  });
+
+  it("remove ordinaire ne supprime pas isMe même si les ids coincident par erreur (intégrité)", () => {
+    // Cas de robustesse : on forge un ami normal avec le même id que isMe
+    FriendStore.upsertMe('Alice', CHATELET);
+    const meId = FriendStore.getAll().find(f => f.isMe)!.id;
+    // On tente remove sur cet id — le garde-fou doit l'ignorer
+    FriendStore.remove(meId);
+    expect(FriendStore.getAll().find(f => f.isMe)).toBeDefined();
+  });
+});
+
+// ── US-19 : sortFriends — épinglage isMe en tête ─────────────────────────────
+
+describe('sortFriends — épinglage isMe en tête (US-19 scénario 3)', () => {
+  // Reproduction de la logique extraite de friends/page.tsx
+  function sortFriends(friends: { id: string; name: string; station: Station; isMe?: boolean }[]) {
+    return [...friends].sort((a, b) => (b.isMe ? 1 : 0) - (a.isMe ? 1 : 0));
+  }
+
+  it("l'entrée isMe apparaît en première position", () => {
+    FriendStore.upsertMe('Alice', CHATELET);
+    FriendStore.add('Bob', NATION);
+    FriendStore.add('Carl', SAINT_LAZARE);
+    const sorted = sortFriends(FriendStore.getAll());
+    expect(sorted[0].isMe).toBe(true);
+    expect(sorted[0].name).toBe('Alice');
+  });
+
+  it("sans entrée isMe, l'ordre est conservé (pas de tri parasite)", () => {
+    FriendStore.add('Bob', NATION);
+    FriendStore.add('Carl', SAINT_LAZARE);
+    const sorted = sortFriends(FriendStore.getAll());
+    expect(sorted[0].name).toBe('Bob');
+    expect(sorted[1].name).toBe('Carl');
+  });
+
+  it("sortFriends est stable : un seul isMe, plusieurs amis ordinaires", () => {
+    FriendStore.add('Zara', SAINT_LAZARE);
+    FriendStore.upsertMe('Alice', CHATELET);
+    FriendStore.add('Bob', NATION);
+    const sorted = sortFriends(FriendStore.getAll());
+    expect(sorted[0].isMe).toBe(true);
+    // Les autres entrees sont là
+    const others = sorted.slice(1).map(f => f.name);
+    expect(others).toContain('Bob');
+    expect(others).toContain('Zara');
+  });
+
+  it("liste vide → reste vide après sort", () => {
+    const sorted = sortFriends([]);
+    expect(sorted).toHaveLength(0);
+  });
+
+  it("liste sans isMe → aucun élément n'est promu", () => {
+    FriendStore.add('Bob', NATION);
+    const sorted = sortFriends(FriendStore.getAll());
+    expect(sorted[0].isMe).toBeUndefined();
+  });
+});

@@ -24,7 +24,7 @@ import type { MeetingPointResult } from '@/lib/algorithm';
 
 // ── Reproduction exacte de la logique group/page.tsx ─────────────────────────
 
-const FORBIDDEN_NAME_CHARS = /[,|&=+#?]/;
+const FORBIDDEN_NAME_CHARS = /[,|&=+#?%]/;
 
 function nameHasError(name: string): boolean {
   return name.trim().length > 0 && FORBIDDEN_NAME_CHARS.test(name);
@@ -108,7 +108,7 @@ function makeResult(station: Station): MeetingPointResult {
 // ── 1. Chaque caractère interdit déclenche nameHasError ───────────────────────
 
 describe('BUG-03 correction — FORBIDDEN_NAME_CHARS : chaque caractère interdit', () => {
-  const forbidden = [',', '|', '&', '=', '+', '#', '?'];
+  const forbidden = [',', '|', '&', '=', '+', '#', '?', '%'];
 
   for (const char of forbidden) {
     it(`"A${char}B" → nameHasError = true (caractère "${char}")`, () => {
